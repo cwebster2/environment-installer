@@ -1,0 +1,6 @@
+docker build \
+  -t dotfiles:razer-v1 \
+  --rm \
+  --network host \
+  -f Dockerfile \
+  .. | tee build.log
