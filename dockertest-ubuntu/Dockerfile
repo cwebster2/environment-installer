@@ -1,4 +1,4 @@
-FROM debian:10.3
+FROM ubuntu:20.04
 
 ENV TARGET_USER casey
 ENV DOTFILESBRANCH=razer-ubuntu
