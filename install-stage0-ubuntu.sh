@@ -251,7 +251,6 @@ base() {
     libssl-dev \
 		--no-install-recommends
 
-# FIXME    exa \
 	setup_sudo
 
 	apt -y autoremove
@@ -388,8 +387,6 @@ install_wmapps() {
     polychromatic \
 		--no-install-recommends
 
-# FIXME
-    #slack-desktop \
 	  apt -y autoremove
 	  apt autoclean
 	  apt clean
