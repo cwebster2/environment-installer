@@ -384,6 +384,7 @@ install_wmapps() {
     code-insiders \
     spotify-client \
     keybase \
+    openrazer-meta \
     polychromatic \
 		--no-install-recommends
 
