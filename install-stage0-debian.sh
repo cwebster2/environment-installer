@@ -257,7 +257,6 @@ base() {
     printer-driver-brlaser \
     prettyping \
     bat \
-    exa \
     libsecret-1-dev \
     libssl-dev \
 		--no-install-recommends
