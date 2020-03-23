@@ -58,10 +58,10 @@ setup_sources() {
 #  cat <<- EOF > /etc/apt/sources.list
 #EOF
 
-  add-apt-repository ppa:yubico/stable
-  add-apt-repository ppa:openrazer/stable
-  add-apt-repository ppa:polychromatic/stable
-  add-apt-repository ppa:wireguard/wireguard
+  add-apt-repository -y ppa:yubico/stable
+  add-apt-repository -y ppa:openrazer/stable
+  add-apt-repository -y ppa:polychromatic/stable
+  add-apt-repository -y ppa:wireguard/wireguard
 
 
   # tlp: Advanced Linux Power Management
