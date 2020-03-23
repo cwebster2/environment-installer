@@ -2,8 +2,10 @@
 
 # Install with the following command
 # DOTFILESBRANCH=master INSTALLER=debian sh -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"
-
 # This assumes you already have a working OS and user created
+
+set -e
+set -o pipefail
 
 export TARGET_USER=$(whoami)
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
