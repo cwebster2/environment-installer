@@ -17,7 +17,7 @@ chmod 755 install-stage0.sh install-stage1.sh
 
 echo "Running stage0 requires sudo, you will be prompted for your password"
 
-sudo -s -- './install-stage0.sh basemin && \
+sudo bash -c './install-stage0.sh basemin && \
   ./install-stage0.sh base && \
   ./install-stage0.sh graphics ${GRAPHICS} && \
   ./install-stage0.sh wm'
