@@ -300,9 +300,10 @@ setup_sudo() {
 	# setup downloads folder as tmpfs
 	# that way things are removed on reboot
 	# i like things clean but you may not want this
-	mkdir -p "/home/$TARGET_USER/Downloads"
-  chown ${TARGET_USER}:${TARGET_USER} "/home/$TARGET_USER/Downloads"
+	mkdir -p "/home/${TARGET_USER}/Downloads"
 	echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
+  sudo mount "/home/${TARGET_USER}/Downloads"
+  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
 }
 
 # install graphics drivers

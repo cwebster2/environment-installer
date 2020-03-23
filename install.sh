@@ -32,4 +32,8 @@ echo "Initializing user environment"
 
 zsh -i -c "./install-stage1.sh tools"
 
-echo "Done!, log out and back in to your preferred WM"
+echo "Cleaning up"
+
+rm install-stage0.sh install-stage1.sh
+
+echo "Done!, log out and back in for full effect (these dotfiles only setup i3)"
