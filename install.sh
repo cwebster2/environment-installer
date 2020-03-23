@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Install with the following command
-# DOTFILESBRANCH=master INSTALLER=debian sh -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"
+# DOTFILESBRANCH=master INSTALLER=debian bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"
 # This assumes you already have a working OS and user created
 
 set -e
