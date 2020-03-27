@@ -386,6 +386,45 @@ install_wmapps() {
   apt clean
 }
 
+create_zfs_snapshot() {
+  echo
+  echo "Creating ZFS Snapshot"
+  echo
+
+  if [[ -z $(command -v zfs) ]]; then
+    echo "zfs not found, skipping"
+    return 0
+  fi
+
+  zfs snapshot create rpool/ROOT@stage0install
+}
+
+rollback_zfs_snapshot() {
+  echo
+  echo "An error occured during install, rolling back to filesystem state before this install step"
+  echo
+
+  if [[ -z $(command -v zfs) ]]; then
+    echo "zfs not found, skipping"
+    return 0
+  fi
+
+  zfs rollback rpool/ROOT@stage0install
+}
+
+destroy_zfs_snapshot() {
+  echo
+  echo "The install step was successful, removing zfs snapshot"
+  echo
+
+  if [[ -z $(command -v zfs) ]]; then
+    echo "zfs not found, skipping"
+    return 0
+  fi
+
+  zfs destroy rpool/ROOT@stage0install
+}
+
 usage() {
   echo -e "install.sh\\n\\tThis script installs my basic setup for a debian laptop\\n"
   echo "Usage:"
@@ -402,6 +441,10 @@ main() {
     usage
     exit 1
   fi
+
+  create_zfs_snapshot
+
+  trap 'rollback_zfs_snapshot' ERR
 
   if [[ $cmd == "base" ]]; then
     check_is_sudo
@@ -430,6 +473,8 @@ main() {
   else
     usage
   fi
+
+  destroy_zfs_snapshot
 }
 
 main "$@"
