@@ -396,7 +396,7 @@ create_zfs_snapshot() {
     return 0
   fi
 
-  zfs snapshot create rpool/ROOT@stage0install
+  zfs snapshot -r rpool/ROOT@stage0install
 }
 
 rollback_zfs_snapshot() {
@@ -409,7 +409,7 @@ rollback_zfs_snapshot() {
     return 0
   fi
 
-  zfs rollback rpool/ROOT@stage0install
+  zfs rollback -r rpool/ROOT@stage0install
 }
 
 destroy_zfs_snapshot() {
@@ -422,7 +422,7 @@ destroy_zfs_snapshot() {
     return 0
   fi
 
-  zfs destroy rpool/ROOT@stage0install
+  zfs destroy -r rpool/ROOT@stage0install
 }
 
 usage() {
