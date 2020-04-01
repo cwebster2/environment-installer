@@ -442,9 +442,9 @@ main() {
     exit 1
   fi
 
+  trap 'rollback_zfs_snapshot' ERR SIGINT
+  trap 'destroy_zfs_snapshot' EXIT
   create_zfs_snapshot
-
-  trap 'rollback_zfs_snapshot' ERR
 
   if [[ $cmd == "base" ]]; then
     check_is_sudo
@@ -473,8 +473,6 @@ main() {
   else
     usage
   fi
-
-  destroy_zfs_snapshot
 }
 
 main "$@"
