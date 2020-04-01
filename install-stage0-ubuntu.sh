@@ -4,6 +4,7 @@ set -o pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTBUGS_FRONTEND=none
+export DEBCONF_NONINTERACTIVE_SEEN=true
 export TARGET_USER=${TARGET_USER:-casey}
 
 # Choose a user account to use for this installation
