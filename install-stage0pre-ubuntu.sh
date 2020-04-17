@@ -13,10 +13,18 @@
 set -e
 set -o pipefail
 
-HOSTNAME=${HOSTNAME:-"caseybook"}
-DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
+export HOSTNAME=${HOSTNAME:-"caseybook"}
+export DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
+export RELEASE=${RELEASE:-"focal"}
+
+export DEBIAN_FRONTEND=noninteractive
+export APT_LISTBUGS_FRONTEND=none
+export DEBCONF_NONINTERACTIVE_SEEN=true
+export TARGET_USER=${TARGET_USER:-casey}
+
 echo "Using ${DISK} as installation target"
 echo "Using ${HOSTNAME} as hostname"
+echo "Bootsrapping ubuntu ${RELEASE}"
 
 install_prereqs() {
   apt-add-repository universe
@@ -109,20 +117,137 @@ init_zfs() {
 }
 
 bootstrap_system() {
-  debootstrap focal /mnt
+  debootstrap "${RELEASE}" /mnt
   zfs set devices=off rpool
 }
 
 configure_system() {
-  echo ${HOSTNAME} > /mnt/etc/hostname
 
+  echo "Setting hostname... ${HOSTNAME}"
+
+  echo ${HOSTNAME} > /mnt/etc/hostname
   cat >> /mnt/etc/hosts <<-EOF
 127.0.0.1   ${HOSTNAME}
 EOF
 
+  echo "Setting networking"
+  cat > /mnt/etc/netplan/01-network-manager-all.yaml <<-EOF
+network:
+  version: 2
+  renderer: NetworkManager
+EOF
+
+  echo "Setting apt sources"
+  cat > /mnt/etc/apt/sources.list <<- EOF
+deb http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
+deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
+deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
+EOF
+
+  echo "Chrooting time"
+  (
+    mount --rbind /dev /mnt/dev
+    mount --rbind /proc /mnt/proc
+    mount --rbind /sys /mnt/sys
+    chroot /mnt /usr/bin/env DISK=${DISK} bash --login
+
+    echo "Configuring basic environment"
+    ln -s /proc/self/mounts /etc/mtab
+    apt-get update
+    dpkg-reconfigure locales
+    dpkg-reconfigure tzdata
+
+    apt-get install --yes \
+      linux-image-generic \
+      --no-install-recommends
+
+    apt-get install --yes \
+      zfs-initramfs \
+      zfsutils-linux \
+      zsys \
+      grup-pc \
+      dosfstools
+
+    echo "Setting up /boot/efi"
+    mkdosfs -F 32 -s 1 -n EFI ${DISK}-part1
+    mkdir /boot/efi
+    echo PARTUUID=$(blkid -s PARTUUID -o value ${DISK}-part1) /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
+    mount /boot/efi
+
+    apt-get install --yes \
+      grub-efi-amd64-signed \
+      shim-signed
+
+    echo "Setting up bpool import"
+    cat > /etc/systemd/system/zfs-import-bpool.service <<-EOF
+[Unit]
+DefaultDependencies=no
+Before=zfs-import-scan.service
+Before=zfs-import-cache.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/zpool import -N -o cachefile=none bpool
+
+[Install]
+WantedBy=zfs-import.target
+EOF
+
+    systemctl enable zfs-import-bpool.service
+
+    echo "Setting up /tmp as a tmpfs"
+    cp /usr/share/systemd/tmp.mount /etc/systemd/system
+    systemctl enable tmp.mount
+
+    echo "Setting up system groups"
+    addgroup --system lpadmin
+    addgroup --system sambashare
+
+    echo "Setting up GRUB"
+    grub-probe /boot
+    update-initramfs -u -k all
+
+    cat >> /etc/default/grub <<-EOF
+GRUB_CMDLINE_LINUX="root=zfs=rpool/ROOT/ubuntu_${UUID_ORIG}"
+EOF
+    update-grub
+
+    grub-install \
+      --target=x86_64-efi \
+      --efi-directory=/boot/efi \
+      --bootloader-id=ubuntu \
+      --recheck \
+      --no-floppy
+
+    ls /boot/grub/*/zfs.mod
+
+    zfs set mountpoint=legacy bpool/BOOT/ubuntu${UUID_ORIG}
+    echo "bpool/BOOT/debian /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
+
+  )
+
+  echo "Test state of install in /mnt"
 }
 
-echo "Test state of install in /mnt"
+finalize() {
+  echo "Setting mount point generator"
+  ln -s /usr/lib/zfs-linux/zed.d/history_event-list-cacher.sh /mnt/etc/zfs/zed.d
+  zpool set cachefile= bpool
+  zpool set cachefile= rpool
+  cp /etc/zfs/zpool.cache /mnt/etc/zfs
+  mkdir -p /mnt/etc/zfs/zfs-list.cache
+  touch /mnt/etc/zfs/zfs-list.cache/bpool /mnt/etc/zfs/zfs-list.cache/rpool
+
+  echo TODO adduser create userdata
+
+  zfs set sync=standard rpool
+}
+
+#TODO SWAP
 
 create_zfs_snapshot() {
   echo
