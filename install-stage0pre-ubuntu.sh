@@ -125,40 +125,9 @@ bootstrap_system() {
   zfs set devices=off rpool
 }
 
-configure_system() {
 
-  echo "Setting hostname... ${HOSTNAME}"
-
-  echo ${HOSTNAME} > /mnt/etc/hostname
-  cat >> /mnt/etc/hosts <<-EOF
-127.0.0.1   ${HOSTNAME}
-EOF
-
-  echo "Setting networking"
-  cat > /mnt/etc/netplan/01-network-manager-all.yaml <<-EOF
-network:
-  version: 2
-  renderer: NetworkManager
-EOF
-
-  echo "Setting apt sources"
-  cat > /mnt/etc/apt/sources.list <<- EOF
-deb http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
-deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
-deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
-deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
-EOF
-
-  echo "Chrooting time"
-  (
-    mount --rbind /dev /mnt/dev
-    mount --rbind /proc /mnt/proc
-    mount --rbind /sys /mnt/sys
-    chroot /mnt /usr/bin/env DISK=${DISK} bash --login
-
-    echo "Configuring basic environment"
+configure_chroot() {
+  echo "Configuring basic environment"
     ln -s /proc/self/mounts /etc/mtab
     apt-get update
     dpkg-reconfigure locales
@@ -231,10 +200,41 @@ EOF
 
     zfs set mountpoint=legacy bpool/BOOT/ubuntu${UUID_ORIG}
     echo "bpool/BOOT/debian /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
+}
 
-  )
+export configure_chroot
+configure_system() {
 
-  echo "Test state of install in /mnt"
+  echo "Setting hostname... ${HOSTNAME}"
+
+  echo ${HOSTNAME} > /mnt/etc/hostname
+  cat >> /mnt/etc/hosts <<-EOF
+127.0.0.1   ${HOSTNAME}
+EOF
+
+  echo "Setting networking"
+  cat > /mnt/etc/netplan/01-network-manager-all.yaml <<-EOF
+network:
+  version: 2
+  renderer: NetworkManager
+EOF
+
+  echo "Setting apt sources"
+  cat > /mnt/etc/apt/sources.list <<- EOF
+deb http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
+deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
+deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
+EOF
+
+  echo "Chrooting time"
+  mount --rbind /dev /mnt/dev
+  mount --rbind /proc /mnt/proc
+  mount --rbind /sys /mnt/sys
+  chroot /mnt /usr/bin/env DISK=${DISK} bash -c "configure_chroot"
+echo "Test state of install in /mnt"
 }
 
 finalize() {
