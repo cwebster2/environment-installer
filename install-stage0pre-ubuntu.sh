@@ -10,8 +10,14 @@
 
 # You've been warned.
 
+set -e
+set -o pipefail
+
 HOSTNAME=${HOSTNAME:-"caseybook"}
 DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
+
+echo "Using ${DISK} as installation target"
+echo "Using ${HOSTNAME} as hostname"
 
 apt-add-repository universe
 apt update
@@ -22,7 +28,6 @@ echo "Syncing system clock"
 ntpdate-debian
 
 
-echo "Using ${DISK} as installation target"
 
 echo "Removing traces of previous installations"
 
@@ -33,8 +38,8 @@ echo "Partitioning ${DISK}"
 
 sgdisk -n1:1M:+512M -t1:EF00 ${DISK}
 sgdisk -n2:0:+1G    -t2:8200 ${DISK}
-sgdisk -n3:0:+1G    -t3:BE01 ${DISK}
-sgdisk -n4:0:0      -t4:BF01 ${DISK}
+sgdisk -n3:0:+1G    -t3:BE00 ${DISK}
+sgdisk -n4:0:0      -t4:BF00 ${DISK}
 
 UUID_ORIG=$(head -100 /dev/urandom | tr -dc 'a-z0-9' |head -c6)
 
