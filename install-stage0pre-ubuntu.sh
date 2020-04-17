@@ -125,13 +125,15 @@ bootstrap_system() {
   zfs set devices=off rpool
 }
 
-
 configure_chroot() {
   echo "Configuring basic environment"
     ln -s /proc/self/mounts /etc/mtab
     apt-get update
-    dpkg-reconfigure locales
-    dpkg-reconfigure tzdata
+    sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
+    locale-gen -a
+    dpkg-reconfigure --frontend=noninteractive locales
+    update-locale LANG=en_US.UTF-8
+    dpkg-reconfigure --frontend=noninteractive tzdata
 
     apt-get install --yes \
       linux-image-generic \
@@ -140,19 +142,18 @@ configure_chroot() {
     apt-get install --yes \
       zfs-initramfs \
       zfsutils-linux \
+      zfs-dkms \
       zsys \
       grup-pc \
-      dosfstools
+      dosfstools \
+      grub-efi-amd64-signed \
+      shim-signed
 
     echo "Setting up /boot/efi"
     mkdosfs -F 32 -s 1 -n EFI ${DISK}-part1
     mkdir /boot/efi
     echo PARTUUID=$(blkid -s PARTUUID -o value ${DISK}-part1) /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
     mount /boot/efi
-
-    apt-get install --yes \
-      grub-efi-amd64-signed \
-      shim-signed
 
     echo "Setting up bpool import"
     cat > /etc/systemd/system/zfs-import-bpool.service <<-EOF
@@ -202,7 +203,7 @@ EOF
     echo "bpool/BOOT/debian /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
 }
 
-export configure_chroot
+export -f configure_chroot
 configure_system() {
 
   echo "Setting hostname... ${HOSTNAME}"
