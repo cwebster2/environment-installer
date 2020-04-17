@@ -64,7 +64,7 @@ zpool create -o ashift=12 -d \
 
 echo "Creating the zfs root pool"
 
-pool create -o ashift=12 \
+zpool create -o ashift=12 \
       -O acltype=posixacl -O canmount=off -O compression=lz4 \
       -O dnodesize=auto -O normalization=formD -O relatime=on -O xattr=sa \
       -O encryption=aes-256-gcm -O keylocation=prompt -O keyformat=passphrase \
