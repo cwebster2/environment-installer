@@ -128,12 +128,15 @@ bootstrap_system() {
 configure_chroot() {
   echo "Configuring basic environment"
     ln -s /proc/self/mounts /etc/mtab
-    apt-get update
     sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
     locale-gen -a
     dpkg-reconfigure --frontend=noninteractive locales
     update-locale LANG=en_US.UTF-8
+
+    echo "America/Chicago" > /etc/timezone
     dpkg-reconfigure --frontend=noninteractive tzdata
+
+    apt-get update
 
     apt-get install --yes \
       linux-image-generic \
@@ -144,7 +147,7 @@ configure_chroot() {
       zfsutils-linux \
       zfs-dkms \
       zsys \
-      grup-pc \
+      grub-pc \
       dosfstools \
       grub-efi-amd64-signed \
       shim-signed
