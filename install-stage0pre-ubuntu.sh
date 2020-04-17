@@ -166,10 +166,10 @@ destroy_zfs_snapshot() {
 usage() {
   echo -e "install.sh\\n\\tThis script installs my basic setup for a debian laptop\\n"
   echo "Usage:"
-  echo "  base                                - setup sources & install base pkgs"
-  echo "  basemin                             - setup sources & install base min pkgs"
-  echo "  graphics {intel, geforce, optimus}  - install graphics drivers"
-  echo "  wm                                  - install window manager/desktop pkgs"
+  echo "  init                                - Do it all"
+  echo "  bootstrap                           - bootstrap unconfigured base"
+  echo "  configure                           - configure base system"
+  echo "  finalize                            - finalize installation"
 }
 
 main() {
