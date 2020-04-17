@@ -51,7 +51,11 @@ partition_disk() {
   sgdisk -n3:0:+1G    -t3:BE00 ${DISK}
   sgdisk -n4:0:0      -t4:BF00 ${DISK}
 
+  sleep 5
+
   partprobe ${DISK}
+
+  sleep 5
 }
 
 init_zfs() {
