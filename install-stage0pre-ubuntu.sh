@@ -129,7 +129,7 @@ configure_chroot() {
   echo "Configuring basic environment"
     ln -s /proc/self/mounts /etc/mtab
     sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
-    locale-gen -a
+    locale-gen
     dpkg-reconfigure --frontend=noninteractive locales
     update-locale LANG=en_US.UTF-8
 
@@ -200,10 +200,8 @@ EOF
       --recheck \
       --no-floppy
 
-    ls /boot/grub/*/zfs.mod
-
-    zfs set mountpoint=legacy bpool/BOOT/ubuntu${UUID_ORIG}
-    echo "bpool/BOOT/debian /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
+    zfs set mountpoint=legacy bpool/BOOT/ubuntu_${UUID_ORIG}
+    echo "bpool/BOOT/ubuntu_${UUID_ORIG} /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
 }
 
 export -f configure_chroot
@@ -237,7 +235,7 @@ EOF
   mount --rbind /dev /mnt/dev
   mount --rbind /proc /mnt/proc
   mount --rbind /sys /mnt/sys
-  chroot /mnt /usr/bin/env DISK=${DISK} bash -c "configure_chroot"
+  chroot /mnt /usr/bin/env DISK=${DISK} UUID_ORIG=${UUID_ORIG} bash -c "configure_chroot"
 echo "Test state of install in /mnt"
 }
 
