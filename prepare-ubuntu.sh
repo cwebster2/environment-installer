@@ -5,7 +5,7 @@ set -o pipefail
 
 export DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
 
-wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-ubunutu.sh > install-stage0pre.sh
+wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-ubuntu.sh > install-stage0pre.sh
 
 chmod 755 install-stage0pre.sh
 
