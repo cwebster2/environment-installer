@@ -13,4 +13,4 @@ echo "Running prepare requires sudo, you will be promped for your password"
 
 echo "This process is destructive to any data on ${DISK}.  BEWARE"
 
-sudo ./install-stagepre0.sh
+sudo ./install-stage0pre.sh
