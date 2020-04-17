@@ -20,14 +20,14 @@ echo "Using ${DISK} as installation target"
 echo "Using ${HOSTNAME} as hostname"
 
 apt-add-repository universe
-apt update
+apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
 
 apt install --yes debootstrap gdisk zfs-initramfs ntpdate mdadm
 
 echo "Syncing system clock"
 ntpdate-debian
 
-
+apt-get update
 
 echo "Removing traces of previous installations"
 
