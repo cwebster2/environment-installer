@@ -114,6 +114,14 @@ init_zfs() {
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/srv"
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/usr"
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/var"
+
+  bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
+  zfs create "rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
+  zfs create "rpool/USERDATA/root_${UUID_ORIG}" -o canmount=on -o mountpoint="/root"
+  zfs set com.ubuntu.zsys:bootfs='yes' rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}
+  zfs set com.ubuntu.zsys:bootfs='yes' rpool/USERDATA/root_${UUID_ORIG}
+  chown root:root /root
+  chmod 700 /root
 }
 
 bootstrap_system() {
@@ -204,21 +212,24 @@ EOF
     apt-get install --yes ubuntu-standard
 
     echo "Adding user"
-    zfs create "rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
-    bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
-    zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}
+    usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
 
-    echo "Setting up root userdata"
-    mv /root /tmp/root
-    zfs create "rpool/USERDATA/root_${UUID_ORIG}" -o canmount=on -o mountpoint="/root"
-    chown root:root /root
-    chmod 700 /root
-    rsync -a /tmp/root/ /root
-    bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
-    zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" rpool/USERDATA/root_${UUID_ORIG}
 
-    echo "TODO: passphrase zfs prompt at boot, reboot, continue install, swap"
+    echo "disabling log rotation compression due to native zfs compression"
+    for file in /etc/logrotate.d/* ; do
+      if grep -Eq "(^|[^#y])compress" "$file" ; then
+        sed -i -r 's/(^|[^#y])(compress)/\1#\2/' "$file"
+      fi
+    done
+
+    echo "Activating swap"
+    mkswap ${DISK}-part2
+    SWAPID=$(blkid -s UUID -o value "${DISK}-part2")
+    printf "UUID=${SWAPID}\tnone\tswap\tdiscard\t0\t0\n" >> "/etc/fstab"
+    swapon -v "${DISK}-part2"
+
+    echo "TODO: passphrase zfs prompt at boot, reboot, continue install"
 }
 
 export -f configure_chroot
@@ -264,8 +275,6 @@ finalize() {
   cp /etc/zfs/zpool.cache /mnt/etc/zfs
   mkdir -p /mnt/etc/zfs/zfs-list.cache
   touch /mnt/etc/zfs/zfs-list.cache/bpool /mnt/etc/zfs/zfs-list.cache/rpool
-
-  echo TODO adduser create userdata
 
   zfs set sync=standard rpool
 }
