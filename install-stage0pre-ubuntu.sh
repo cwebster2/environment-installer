@@ -22,10 +22,6 @@ export APT_LISTBUGS_FRONTEND=none
 export DEBCONF_NONINTERACTIVE_SEEN=true
 export TARGET_USER=${TARGET_USER:-casey}
 
-echo "Using ${DISK} as installation target"
-echo "Using ${HOSTNAME} as hostname"
-echo "Bootsrapping ubuntu ${RELEASE}"
-
 install_prereqs() {
   apt-add-repository universe
   apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
@@ -202,6 +198,27 @@ EOF
 
     zfs set mountpoint=legacy bpool/BOOT/ubuntu_${UUID_ORIG}
     echo "bpool/BOOT/ubuntu_${UUID_ORIG} /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
+
+    echo "Installing base system"
+    apt-get dist-upgrade --yes
+    apt-get install --yes ubuntu-standard
+
+    echo "Adding user"
+    zfs create "rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
+    adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
+    bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
+    zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}
+
+    echo "Setting up root userdata"
+    mv /root /tmp/root
+    zfs create "rpool/USERDATA/root_${UUID_ORIG}" -o canmount=on -o mountpoint="/root"
+    chown root:root /root
+    chmod 700 /root
+    rsync -a /tmp/root/ /root
+    bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
+    zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" rpool/USERDATA/root_${UUID_ORIG}
+
+    echo "TODO: passphrase zfs prompt at boot, reboot, continue install, swap"
 }
 
 export -f configure_chroot
@@ -236,7 +253,7 @@ EOF
   mount --rbind /proc /mnt/proc
   mount --rbind /sys /mnt/sys
   chroot /mnt /usr/bin/env DISK=${DISK} UUID_ORIG=${UUID_ORIG} bash -c "configure_chroot"
-echo "Test state of install in /mnt"
+  echo "Test state of install in /mnt"
 }
 
 finalize() {
@@ -316,20 +333,28 @@ main() {
   #create_zfs_snapshot
 
   if [[ $cmd == "init" ]]; then
+    echo "Using ${DISK} as installation target"
+    echo "Using ${HOSTNAME} as hostname"
+    echo "Bootsrapping ubuntu ${RELEASE}"
+
     install_prereqs
     partition_disk
     init_zfs
     bootstrap_system
     configure_system
+    finalize
 
   elif [[ $cmd == "bootstrap" ]]; then
+    echo "Bootsrapping ubuntu ${RELEASE}"
     bootstrap_system
 
   elif [[ $cmd == "configure" ]]; then
+    echo "Configuring ubuntu ${RELEASE}"
     configure_system
 
   elif [[ $cmd == "finalize" ]]; then
-    echo TODO
+    echo "Finalizing system"
+    finalize
   else
     usage
   fi
