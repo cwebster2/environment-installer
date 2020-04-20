@@ -194,6 +194,10 @@ EOF
 
     cat >> /etc/default/grub <<-EOF
 GRUB_CMDLINE_LINUX="root=zfs=rpool/ROOT/ubuntu_${UUID_ORIG}"
+GRUB_TIMEOUT_STYLE=hidden
+GRUB_TIMEOUT=5
+GRUB_RECORDFAIL_TIMEOUT=5
+GRUB_TERMINAL=console
 EOF
     update-grub
 
@@ -212,6 +216,7 @@ EOF
     apt-get install --yes ubuntu-standard
 
     echo "Adding user"
+    chown 1000 /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
 
