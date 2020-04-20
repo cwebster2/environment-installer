@@ -212,8 +212,8 @@ EOF
     echo "bpool/BOOT/ubuntu_${UUID_ORIG} /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
 
     echo "Installing base system"
-    apt-get dist-upgrade --yes
-    apt-get install --yes ubuntu-standard
+    #apt-get dist-upgrade --yes
+    #apt-get install --yes ubuntu-standard
 
     echo "Adding user"
     chown 1000 /home/${TARGET_USER}
