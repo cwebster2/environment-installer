@@ -10,7 +10,7 @@
 
 # You've been warned.
 
-set -e
+set +e
 set -o pipefail
 
 export HOSTNAME=${HOSTNAME:-"caseybook"}
@@ -96,7 +96,7 @@ init_zfs() {
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/apt"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/dpkg"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/NetworkManager"
-  zfs create -o com.sun.auto-snapshot=false"rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/docker"
+  zfs create -o com.sun.auto-snapshot=false "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/docker"
 
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/srv"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/usr" -o canmount=off
