@@ -96,6 +96,7 @@ init_zfs() {
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/apt"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/dpkg"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/NetworkManager"
+  zfs create -o com.sun.auto-snapshot=false"rpool/ROOT/ubuntu_${UUID_ORIG}/var/lib/docker"
 
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/srv"
   zfs create "rpool/ROOT/ubuntu_${UUID_ORIG}/usr" -o canmount=off
@@ -151,34 +152,19 @@ configure_chroot() {
       zfsutils-linux \
       zfs-dkms \
       zsys \
-      grub-pc \
       dosfstools \
       grub-efi-amd64-signed \
       shim-signed
 
+
+    apt-get install --yes grub-pc
     echo "Setting up /boot/efi"
     mkdosfs -F 32 -s 1 -n EFI ${DISK}-part1
     mkdir /boot/efi
-    echo PARTUUID=$(blkid -s PARTUUID -o value ${DISK}-part1) /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
+    echo PARTUUID=$(blkid -s PARTUUID -o value ${DISK}-part1) /boot/efi vfat nofail,umask=0077,x-systemd.device-timeout=1 0 1 >> /etc/fstab
+    echo "/boot/efi/grub /boot/grub none defaults,bind 0 0" >> /etc/fstab
     mount /boot/efi
-
-    echo "Setting up bpool import"
-    cat > /etc/systemd/system/zfs-import-bpool.service <<-EOF
-[Unit]
-DefaultDependencies=no
-Before=zfs-import-scan.service
-Before=zfs-import-cache.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/sbin/zpool import -N -o cachefile=none bpool
-
-[Install]
-WantedBy=zfs-import.target
-EOF
-
-    systemctl enable zfs-import-bpool.service
+    mount /boot/efi/grub
 
     echo "Setting up /tmp as a tmpfs"
     cp /usr/share/systemd/tmp.mount /etc/systemd/system
@@ -193,7 +179,7 @@ EOF
     update-initramfs -u -k all
 
     cat >> /etc/default/grub <<-EOF
-GRUB_CMDLINE_LINUX="root=zfs=rpool/ROOT/ubuntu_${UUID_ORIG}"
+GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/ubuntu_${UUID_ORIG}"
 GRUB_TIMEOUT_STYLE=hidden
 GRUB_TIMEOUT=5
 GRUB_RECORDFAIL_TIMEOUT=5
@@ -208,9 +194,6 @@ EOF
       --recheck \
       --no-floppy
 
-    zfs set mountpoint=legacy bpool/BOOT/ubuntu_${UUID_ORIG}
-    echo "bpool/BOOT/ubuntu_${UUID_ORIG} /boot zfs nodev,relatime,x-systemd.requires=zfs-import-bpool.service 0 0" >> /etc/fstab
-
     echo "Installing base system"
     #apt-get dist-upgrade --yes
     #apt-get install --yes ubuntu-standard
@@ -219,7 +202,6 @@ EOF
     chown 1000 /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
-
 
     echo "disabling log rotation compression due to native zfs compression"
     for file in /etc/logrotate.d/* ; do
@@ -282,6 +264,10 @@ finalize() {
   touch /mnt/etc/zfs/zfs-list.cache/bpool /mnt/etc/zfs/zfs-list.cache/rpool
 
   zfs set sync=standard rpool
+
+  echo "cleaning up"
+  mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
+  zpool export -a
 }
 
 #TODO SWAP
