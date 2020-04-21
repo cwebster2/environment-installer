@@ -12,6 +12,7 @@
 
 set +e
 set -o pipefail
+#set -x
 
 export HOSTNAME=${HOSTNAME:-"caseybook"}
 export DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
@@ -43,7 +44,7 @@ partition_disk() {
   echo "Partitioning ${DISK}"
 
   sgdisk -n1:1M:+512M -t1:EF00 ${DISK}
-  sgdisk -n2:0:+1G    -t2:8200 ${DISK}
+  sgdisk -n2:0:+16G   -t2:8200 ${DISK}
   sgdisk -n3:0:+1G    -t3:BE00 ${DISK}
   sgdisk -n4:0:0      -t4:BF00 ${DISK}
 
@@ -163,7 +164,10 @@ configure_chroot() {
     mkdir /boot/efi
     echo PARTUUID=$(blkid -s PARTUUID -o value ${DISK}-part1) /boot/efi vfat nofail,umask=0077,x-systemd.device-timeout=1 0 1 >> /etc/fstab
     echo "/boot/efi/grub /boot/grub none defaults,bind 0 0" >> /etc/fstab
+    mkdir -p /boot/efi
     mount /boot/efi
+    mkdir -p /boot/efi/grub
+    mkdir -p /boot/grub
     mount /boot/efi/grub
 
     echo "Setting up /tmp as a tmpfs"
@@ -199,9 +203,11 @@ EOF
     #apt-get install --yes ubuntu-standard
 
     echo "Adding user"
+    cp -a /etc/skel/* /home/${TARGET_USER}
     chown 1000 /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
+
 
     echo "disabling log rotation compression due to native zfs compression"
     for file in /etc/logrotate.d/* ; do
