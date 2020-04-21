@@ -170,10 +170,12 @@ configure_chroot() {
     mkdir -p /boot/grub
     mount /boot/efi/grub
 
+    ls /boot
     echo "Fixing initrd"
     KVER=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f2)
     KVERM=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f3)
     mkinitramfs -o "/boot/initrd.img-${KVER}-${KVERM}-generic" ${KVER}-${KVERM}-generic
+    ls /boot
 
     echo "Setting up /tmp as a tmpfs"
     cp /usr/share/systemd/tmp.mount /etc/systemd/system
@@ -205,8 +207,8 @@ EOF
 
 
     echo "Adding user"
-    cp -a /etc/skel/* /home/${TARGET_USER}
-    chown 1000 /home/${TARGET_USER}
+    cp -a /etc/skel/. /home/${TARGET_USER}
+    chown -R 1000 /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
 
