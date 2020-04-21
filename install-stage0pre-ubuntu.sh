@@ -170,6 +170,11 @@ configure_chroot() {
     mkdir -p /boot/grub
     mount /boot/efi/grub
 
+    echo "Fixing initrd"
+    KVER=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f2)
+    KVERM=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f3)
+    mkinitramfs -c -o "/boot/initrd.img-${KVER}-${KVERM}-generic" ${KVER}-${KVERM}-generic
+
     echo "Setting up /tmp as a tmpfs"
     cp /usr/share/systemd/tmp.mount /etc/systemd/system
     systemctl enable tmp.mount
@@ -198,9 +203,6 @@ EOF
       --recheck \
       --no-floppy
 
-    echo "Installing base system"
-    #apt-get dist-upgrade --yes
-    #apt-get install --yes ubuntu-standard
 
     echo "Adding user"
     cp -a /etc/skel/* /home/${TARGET_USER}
@@ -222,7 +224,9 @@ EOF
     printf "UUID=${SWAPID}\tnone\tswap\tdiscard\t0\t0\n" >> "/etc/fstab"
     swapon -v "${DISK}-part2"
 
-    echo "TODO: passphrase zfs prompt at boot, reboot, continue install"
+    echo "Installing base system"
+    apt-get dist-upgrade --yes
+    apt-get install --yes ubuntu-standard network-manager
 }
 
 export -f configure_chroot
@@ -271,9 +275,14 @@ finalize() {
 
   zfs set sync=standard rpool
 
+  # make boot stuff world readable
+  sed -i 's#\(.*boot/efi.*\)umask=0077\(.*\)#\1umask=0022,fmask=0022,dmask=0022\2#' "/mnt/etc/fstab"
+
   echo "cleaning up"
   mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
   zpool export -a
+
+  echo "REBOOT"
 }
 
 #TODO SWAP
