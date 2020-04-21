@@ -173,7 +173,7 @@ configure_chroot() {
     echo "Fixing initrd"
     KVER=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f2)
     KVERM=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f3)
-    mkinitramfs -c -o "/boot/initrd.img-${KVER}-${KVERM}-generic" ${KVER}-${KVERM}-generic
+    mkinitramfs -o "/boot/initrd.img-${KVER}-${KVERM}-generic" ${KVER}-${KVERM}-generic
 
     echo "Setting up /tmp as a tmpfs"
     cp /usr/share/systemd/tmp.mount /etc/systemd/system
