@@ -216,7 +216,7 @@ EOF
     echo "Adding user"
     cp -a /etc/skel/. /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
-    usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
+    usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo,audio,video ${TARGET_USER}
     cat > /home/${TARGET_USER}/do-stage0-install.sh <<-EOF
 DOTFILESBRANCH="${DOTFILESBRANCH}" INSTALLER="${DISTRO}" bash -c "\$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"  | tee install.log
 EOF
