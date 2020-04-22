@@ -277,6 +277,8 @@ base() {
   locale-gen -a
   dpkg-reconfigure --frontend=noninteractive locales && \
     update-locale LANG=en_US.UTF-8
+
+  sed -i '/WaylendEnable=false/ s/^#\s*//' /etc/gdm3/daemon.conf
   }
 
 # setup sudo for a user
@@ -377,6 +379,7 @@ install_wmapps() {
     higan \
     hub \
     inkscape \
+    google-chrome-stable \
     kdeconnect \
     lxappearance \
     neofetch \

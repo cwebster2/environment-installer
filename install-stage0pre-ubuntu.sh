@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO:  USERDATA is not being mounted post reboot
-
 # This is meant to be run from a liveCD environment
 # Onto a machine you want to dedicate the entire disk
 # to Linux.  This will erase the entire disk.
@@ -22,6 +20,7 @@ export RELEASE=${RELEASE:-"focal"}
 export DISTRO=${DISTRO:-"ubuntu"}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-"master"}
 export SWAPSIZE=${SWAPSIZE:-"1G"}
+export TZONE=${TZONE:-"America/Chicago"}
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTBUGS_FRONTEND=none
@@ -148,7 +147,9 @@ configure_chroot() {
     dpkg-reconfigure --frontend=noninteractive locales
     update-locale LANG=en_US.UTF-8
 
-    echo "America/Chicago" > /etc/timezone
+    echo "${TZONE}" > /etc/timezone
+    rm -f /etc/localtime
+    cp -f /usr/share/zoneinfo/$TZONE /etc/localtime
     dpkg-reconfigure --frontend=noninteractive tzdata
 
     apt-get update
@@ -260,22 +261,12 @@ EOF
 
   echo "Setting apt sources"
   cat > /mnt/etc/apt/sources.list <<- EOF
-deb http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main universe
-deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
-deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
-deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
-deb http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted
-deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted
-deb http://archive.ubuntu.com/ubuntu ${RELEASE}-security main restricted
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-security main restricted
-deb http://archive.ubuntu.com/ubuntu ${RELEASE} main multiverse
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main multiverse
-deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main multiverse
-deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main multiverse
+deb http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted universe multiverse
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main restricted universe multiverse
+deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted universe multiverse
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted universe multiverse
 deb http://archive.ubuntu.com/ubuntu ${RELEASE}-backports main restricted universe multiverse
 deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-backports main restricted universe multiverse
 EOF
