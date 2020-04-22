@@ -15,4 +15,4 @@ TARGET_USER="casey"
 
 wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-ubuntu.sh > install-focal.sh
 chmod 755 install-focal.sh
-./install-focal.sh
+./install-focal.sh init
