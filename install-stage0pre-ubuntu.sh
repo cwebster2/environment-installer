@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO:  USERDATA is not being mounted post reboot
+
 # This is meant to be run from a liveCD environment
 # Onto a machine you want to dedicate the entire disk
 # to Linux.  This will erase the entire disk.
@@ -57,6 +59,7 @@ partition_disk() {
 
 init_zfs() {
   UUID_ORIG=$(head -100 /dev/urandom | tr -dc 'a-z0-9' |head -c6)
+  UUID2_ORIG=$(head -100 /dev/urandom | tr -dc 'a-z0-9' |head -c6)
 
   echo "Creating the zfs boot pool"
 
@@ -118,10 +121,10 @@ init_zfs() {
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/var"
 
   bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
-  zfs create "rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
-  zfs create "rpool/USERDATA/root_${UUID_ORIG}" -o canmount=on -o mountpoint="/root"
-  zfs set com.ubuntu.zsys:bootfs='yes' rpool/USERDATA/${TARGET_USER}_${UUID_ORIG}
-  zfs set com.ubuntu.zsys:bootfs='yes' rpool/USERDATA/root_${UUID_ORIG}
+  zfs create "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
+  zfs create "rpool/USERDATA/root_${UUID2_ORIG}" -o canmount=on -o mountpoint="/root"
+  zfs set com.ubuntu.zsys:bootfs-datasets='${bootfsdataset}' "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}"
+  zfs set com.ubuntu.zsys:bootfs-datasets='${bootfsdataset}' "rpool/USERDATA/root_${UUID2_ORIG}"
   chown root:root /root
   chmod 700 /root
 }
@@ -209,12 +212,12 @@ EOF
     echo "Adding user"
     cp -a /etc/skel/. /home/${TARGET_USER}
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
-    chown -R ${TARGET_USER}.${TARGET_USER} /home/${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
     cat > /home/${TARGET_USER}/do-stage0-install.sh <<-EOF
-DOTFILESBRANCH=razer-ubuntu INSTALLER=ubuntu bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"
+DOTFILESBRANCH=razer-ubuntu INSTALLER=ubuntu bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"  | tee install.log
 EOF
     chmod 755 /home/${TARGET_USER}/do-stage0-install.sh
+    chown -R ${TARGET_USER}.${TARGET_USER} /home/${TARGET_USER}
 
 
     echo "disabling log rotation compression due to native zfs compression"
@@ -260,6 +263,18 @@ deb http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
 deb-src http://security.ubuntu.com/ubuntu ${RELEASE}-security main universe
 deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
 deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main universe
+deb http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main restricted
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main restricted
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-security main restricted
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-security main restricted
+deb http://archive.ubuntu.com/ubuntu ${RELEASE} main multiverse
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE} main multiverse
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main multiverse
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-updates main multiverse
+deb http://archive.ubuntu.com/ubuntu ${RELEASE}-backports main restricted universe multiverse
+deb-src http://archive.ubuntu.com/ubuntu ${RELEASE}-backports main restricted universe multiverse
 EOF
 
   echo "Chrooting time"
