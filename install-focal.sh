@@ -4,15 +4,15 @@
 # bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-focal.sh)"
 # This assumes you are in a livecd environment and want to provision an entire disk to ubuntu
 
-HOSTNAME="caseybook"
-DISK="/dev/disk/by-id/scsi-SATA_disk1"
-RELEASE="focal"
-DISTRO="ubuntu"
-DOTFILESBRANCH="razer-ubuntu"
-SWAPSIZE="1G"
-TZONE="America/Chicago"
-TARGET_USER="casey"
+export HOSTNAME="caseybook"
+export DISK="/dev/disk/by-id/scsi-SATA_disk1"
+export RELEASE="focal"
+export DISTRO="ubuntu"
+export DOTFILESBRANCH="razer-ubuntu"
+export SWAPSIZE="1G"
+export TZONE="America/Chicago"
+export TARGET_USER="casey"
 
 wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-ubuntu.sh > install-focal.sh
 chmod 755 install-focal.sh
-./install-focal.sh init
+sudo ./install-focal.sh init
