@@ -123,8 +123,8 @@ init_zfs() {
   bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
   zfs create "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
   zfs create "rpool/USERDATA/root_${UUID2_ORIG}" -o canmount=on -o mountpoint="/root"
-  zfs set com.ubuntu.zsys:bootfs-datasets='${bootfsdataset}' "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}"
-  zfs set com.ubuntu.zsys:bootfs-datasets='${bootfsdataset}' "rpool/USERDATA/root_${UUID2_ORIG}"
+  zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}"
+  zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" "rpool/USERDATA/root_${UUID2_ORIG}"
   chown root:root /root
   chmod 700 /root
 }
