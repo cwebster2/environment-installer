@@ -120,7 +120,7 @@ init_zfs() {
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/usr"
   zfs set com.ubuntu.zsys:bootfs='no' "rpool/ROOT/ubuntu_${UUID_ORIG}/var"
 
-  bootfsdataset=$(grep "\s/\s" /proc/mounts | awk '{ print $1 }')
+  bootfsdataset=$(grep "\s/mnt\s" /proc/mounts | awk '{ print $1 }')
   zfs create "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}" -o canmount=on -o mountpoint="/home/${TARGET_USER}"
   zfs create "rpool/USERDATA/root_${UUID2_ORIG}" -o canmount=on -o mountpoint="/root"
   zfs set com.ubuntu.zsys:bootfs-datasets="${bootfsdataset}" "rpool/USERDATA/${TARGET_USER}_${UUID2_ORIG}"
