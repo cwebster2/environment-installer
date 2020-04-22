@@ -46,7 +46,7 @@ partition_disk() {
   echo "Partitioning ${DISK}"
 
   sgdisk -n1:1M:+512M -t1:EF00 ${DISK}
-  sgdisk -n2:0:+16G   -t2:8200 ${DISK}
+  sgdisk -n2:0:+1G    -t2:8200 ${DISK}
   sgdisk -n3:0:+1G    -t3:BE00 ${DISK}
   sgdisk -n4:0:0      -t4:BF00 ${DISK}
 
@@ -214,7 +214,7 @@ EOF
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
     cat > /home/${TARGET_USER}/do-stage0-install.sh <<-EOF
-DOTFILESBRANCH=razer-ubuntu INSTALLER=ubuntu bash -c '"$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"'  | tee install.log
+DOTFILESBRANCH=razer-ubuntu INSTALLER=ubuntu bash -c "\$\(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh\)"  | tee install.log
 EOF
     chmod 755 /home/${TARGET_USER}/do-stage0-install.sh
     chown -R ${TARGET_USER}.${TARGET_USER} /home/${TARGET_USER}
