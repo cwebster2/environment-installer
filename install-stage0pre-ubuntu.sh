@@ -19,6 +19,9 @@ set -o pipefail
 export HOSTNAME=${HOSTNAME:-"caseybook"}
 export DISK=${DISK:-"/dev/disk/by-id/scsi-SATA_disk1"}
 export RELEASE=${RELEASE:-"focal"}
+export DISTRO=${DISTRO:-"ubuntu"}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-"master"}
+export SWAPSIZE=${SWAPSIZE:-"1G"}
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTBUGS_FRONTEND=none
@@ -26,13 +29,15 @@ export DEBCONF_NONINTERACTIVE_SEEN=true
 export TARGET_USER=${TARGET_USER:-casey}
 
 install_prereqs() {
+  echo "I: Installing ntpdate"
   apt-add-repository universe
   apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
   apt install --yes ntpdate
 
-  echo "Syncing system clock"
+  echo "I: Setting system clock"
   ntpdate-debian
 
+  echo "I: Installing prereqs for install"
   apt-get update
   apt install --yes debootstrap gdisk zfs-initramfs ntpdate mdadm
 }
@@ -46,10 +51,11 @@ partition_disk() {
   echo "Partitioning ${DISK}"
 
   sgdisk -n1:1M:+512M -t1:EF00 ${DISK}
-  sgdisk -n2:0:+1G    -t2:8200 ${DISK}
+  sgdisk -n2:0:+${SWAPSIZE}    -t2:8200 ${DISK}
   sgdisk -n3:0:+1G    -t3:BE00 ${DISK}
   sgdisk -n4:0:0      -t4:BF00 ${DISK}
 
+  echo "Sleeping to let disks sync before creating zfs pools"
   sleep 5
 
   partprobe ${DISK}
@@ -173,12 +179,10 @@ configure_chroot() {
     mkdir -p /boot/grub
     mount /boot/efi/grub
 
-    ls /boot
     echo "Fixing initrd"
     KVER=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f2)
     KVERM=$(find /boot/ -name 'vmlinuz-*' -print | cut -d"-" -f3)
     mkinitramfs -o "/boot/initrd.img-${KVER}-${KVERM}-generic" ${KVER}-${KVERM}-generic
-    ls /boot
 
     echo "Setting up /tmp as a tmpfs"
     cp /usr/share/systemd/tmp.mount /etc/systemd/system
@@ -197,7 +201,6 @@ GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/ubuntu_${UUID_ORIG}"
 GRUB_TIMEOUT_STYLE=hidden
 GRUB_TIMEOUT=5
 GRUB_RECORDFAIL_TIMEOUT=5
-GRUB_TERMINAL=console
 EOF
     update-grub
 
@@ -214,7 +217,7 @@ EOF
     adduser --home /home/${TARGET_USER} --shell /usr/bin/bash --uid 1000 ${TARGET_USER}
     usermod -a -G adm,cdrom,dip,lpadmin,plugdev,sambashare,sudo ${TARGET_USER}
     cat > /home/${TARGET_USER}/do-stage0-install.sh <<-EOF
-DOTFILESBRANCH=razer-ubuntu INSTALLER=ubuntu bash -c "\$\(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh\)"  | tee install.log
+DOTFILESBRANCH="${DOTFILESBRANCH}" INSTALLER="${DISTRO}" bash -c "\$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh)"  | tee install.log
 EOF
     chmod 755 /home/${TARGET_USER}/do-stage0-install.sh
     chown -R ${TARGET_USER}.${TARGET_USER} /home/${TARGET_USER}
