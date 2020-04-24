@@ -239,7 +239,7 @@ EOF
 
     echo "Installing base system"
     apt-get dist-upgrade --yes
-    apt-get install --yes ubuntu-standard network-manager
+    apt-get install --yes ubuntu-standard network-manager bolt thunderbolt-tools
 }
 
 export -f configure_chroot
