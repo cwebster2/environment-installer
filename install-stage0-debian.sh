@@ -131,7 +131,7 @@ EOF
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 222B85B0F90BE2D24CFEB93F47484E50656D16C7
 
   # Import the spotify keys
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 2EBF997C15BDA244B6EBF5D84773BD5E130D1D45
+  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys D1742AD60D811D58
 
   # Import the microsoft key
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BC528686B50D79E339D3721CEB3E94ADBE1229CF
@@ -314,8 +314,11 @@ setup_sudo() {
   # i like things clean but you may not want this
   mkdir -p "/home/${TARGET_USER}/Downloads"
   echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
-  sudo mount "/home/${TARGET_USER}/Downloads"
-  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
+  (
+    set +e
+    sudo mount "/home/${TARGET_USER}/Downloads"
+    chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
+  )
 }
 
 # install graphics drivers
