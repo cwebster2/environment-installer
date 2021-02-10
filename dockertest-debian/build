@@ -1,6 +1,7 @@
 docker build \
-  -t dotfiles:v2 \
+  -t dotfiles:v3 \
   --rm \
   --network host \
   -f Dockerfile \
+  --squash \
   .. | tee build.log
