@@ -57,7 +57,6 @@ setup_sources_min() {
    setup_sources_min;
 
    add-apt-repository -y ppa:yubico/stable
-   add-apt-repository -y ppa:wireguard/wireguard
 
 
   # tlp: Advanced Linux Power Management
@@ -108,6 +107,10 @@ cat <<- EOF > /etc/apt/sources.list.d/spotify.list
   deb http://repository.spotify.com stable non-free
 EOF
 
+cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
+  deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+EOF
+
   # Import the slack public key
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys DB085A08CA13B8ACB917E0F6D938EC0D038651BD
 
@@ -132,6 +135,8 @@ EOF
   # linrunner
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BF851E76615EF34A
 
+  # github cli
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
 }
 
 base_min() {
@@ -152,6 +157,7 @@ base_min() {
     file \
     findutils \
     gcc \
+    ninja-build \
     git \
     gnupg \
     gnupg2 \
@@ -222,6 +228,7 @@ base() {
     systemd \
     fzf \
     gdm3 \
+    gh \
     htop \
     iproute2 \
     lshw \
@@ -381,10 +388,10 @@ install_wmapps() {
     libxcb-screensaver0-dev \
     teams \
     code-insiders \
-    spotify-client \
     keybase \
     --no-install-recommends
 
+    # spotify-client \
   apt -y autoremove
   apt autoclean
   apt clean
