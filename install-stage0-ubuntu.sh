@@ -108,7 +108,7 @@ cat <<- EOF > /etc/apt/sources.list.d/spotify.list
 EOF
 
 cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
-  deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+  deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
 EOF
 
   # Import the slack public key
@@ -386,12 +386,12 @@ install_wmapps() {
     libxss-dev \
     libpulse-dev \
     libxcb-screensaver0-dev \
+    spotify-client \
     teams \
     code-insiders \
     keybase \
     --no-install-recommends
 
-    # spotify-client \
   apt -y autoremove
   apt autoclean
   apt clean
