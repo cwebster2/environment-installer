@@ -126,31 +126,31 @@ cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
 EOF
 
   # Import the slack public key
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys DB085A08CA13B8ACB917E0F6D938EC0D038651BD
+  curl -L "https://packagecloud.io/slacktechnologies/slack/gpgkey" 2> /dev/null | apt-key add - &>/dev/null
 
   # Import the storycore key
   curl http://download.opensuse.org/repositories/home:/strycore/Debian_Unstable/Release.key | apt-key add -
 
   # Import the keybase key
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 222B85B0F90BE2D24CFEB93F47484E50656D16C7
+  curl https://keybase.io/docs/server_security/code_signing_key.asc | apt-key add -
 
   # Import the spotify keys
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 2EBF997C15BDA244B6EBF5D84773BD5E130D1D45
+  curl -sS https://download.spotify.com/debian/pubkey.gpg | sudo apt-key add -
 
   # Import the microsoft key
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BC528686B50D79E339D3721CEB3E94ADBE1229CF
+  curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
 
   # Import the Google Chrome public key
   curl https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
 
   # add the yubico ppa gpg key
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 3653E21064B19D134466702E43D5C49532CBA1A9
+  apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 32CBA1A9
 
   # add the tlp apt-repo gpg key
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 6B283E95745A6D903009F7CA641EED65CD4E8809
+  # apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 6B283E95745A6D903009F7CA641EED65CD4E8809
 
   # linrunner
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BF851E76615EF34A
+  # apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BF851E76615EF34A
 
 }
 
