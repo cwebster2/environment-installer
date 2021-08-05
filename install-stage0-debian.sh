@@ -126,25 +126,35 @@ cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
 EOF
 
   # Import the slack public key
+  echo "slack"
   curl -L "https://packagecloud.io/slacktechnologies/slack/gpgkey" 2> /dev/null | apt-key add - &>/dev/null
 
   # Import the storycore key
+  echo "storycore"
   curl http://download.opensuse.org/repositories/home:/strycore/Debian_Unstable/Release.key | apt-key add -
 
   # Import the keybase key
+  echo "keybase"
   curl https://keybase.io/docs/server_security/code_signing_key.asc | apt-key add -
 
   # Import the spotify keys
-  curl -sS https://download.spotify.com/debian/pubkey.gpg | sudo apt-key add -
+  echo "spotify"
+  curl -sS https://download.spotify.com/debian/pubkey_0D811D58.gpg | apt-key add -
 
   # Import the microsoft key
-  curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+  echo "ms"
+  curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 
   # Import the Google Chrome public key
+  echo "chrome"
   curl https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
 
   # add the yubico ppa gpg key
+  echo "yubi"
   apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 32CBA1A9
+
+  # github
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
 
   # add the tlp apt-repo gpg key
   # apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 6B283E95745A6D903009F7CA641EED65CD4E8809
@@ -169,7 +179,6 @@ base_min() {
     curl \
     dnsutils \
     expect \
-    fd-find \
     file \
     findutils \
     gcc \
@@ -199,7 +208,6 @@ base_min() {
     tree \
     tzdata \
     unzip \
-    neovim \
     emacs-gtk \
     wget \
     xz-utils \
@@ -232,7 +240,6 @@ base() {
     gnupg-agent \
     google-cloud-sdk \
     iwd \
-    lastpass-cli \
     libimobiledevice6 \
     libpam-systemd \
     pcscd \
@@ -264,7 +271,6 @@ base() {
     docker.io \
     printer-driver-brlaser \
     prettyping \
-    bat \
     libsecret-1-dev \
     libssl-dev \
     --no-install-recommends
@@ -320,6 +326,7 @@ setup_sudo() {
   # that way things are removed on reboot
   # i like things clean but you may not want this
   mkdir -p "/home/${TARGET_USER}/Downloads"
+  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
   echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
   (
     set +e
@@ -376,7 +383,7 @@ install_wmapps() {
     rofi \
     usbmuxd \
     xclip \
-    compton \
+    picom \
     arandr \
     adwaita-icon-theme \
     breeze-cursor-theme \
@@ -387,7 +394,6 @@ install_wmapps() {
     gucharmap \
     hicolor-icon-theme \
     higan \
-    hub \
     inkscape \
     google-chrome-stable \
     kdeconnect \
