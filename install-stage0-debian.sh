@@ -121,6 +121,10 @@ cat <<- EOF > /etc/apt/sources.list.d/spotify.list
   deb http://repository.spotify.com stable non-free
 EOF
 
+cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
+  deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+EOF
+
   # Import the slack public key
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys DB085A08CA13B8ACB917E0F6D938EC0D038651BD
 
@@ -131,7 +135,7 @@ EOF
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 222B85B0F90BE2D24CFEB93F47484E50656D16C7
 
   # Import the spotify keys
-  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys D1742AD60D811D58
+  apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 2EBF997C15BDA244B6EBF5D84773BD5E130D1D45
 
   # Import the microsoft key
   apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BC528686B50D79E339D3721CEB3E94ADBE1229CF
@@ -153,6 +157,7 @@ EOF
 base_min() {
   apt-get update || true
   apt-get -y upgrade
+  apt-get -y dist-upgrade
 
   apt-get install -y \
     adduser \
@@ -168,6 +173,7 @@ base_min() {
     file \
     findutils \
     gcc \
+    ninja-build \
     git \
     gnupg \
     gnupg2 \
@@ -236,6 +242,7 @@ base() {
     systemd \
     fzf \
     gdm3 \
+    gh \
     htop \
     iproute2 \
     lshw \
