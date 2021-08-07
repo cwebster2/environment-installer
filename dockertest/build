@@ -1,0 +1,7 @@
+docker build \
+  --build-arg DISTRO=ubuntu \
+  --build-arg IMAGE=ubuntu \
+  -t dotfiles:v3 \
+  --network host \
+  -f Dockerfile \
+  .. | tee build.log

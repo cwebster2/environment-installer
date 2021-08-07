@@ -174,9 +174,7 @@ base_min() {
     automake \
     bc \
     bzip2 \
-    ca-certificates \
     coreutils \
-    curl \
     dnsutils \
     expect \
     file \
@@ -184,8 +182,6 @@ base_min() {
     gcc \
     ninja-build \
     git \
-    gnupg \
-    gnupg2 \
     grep \
     gzip \
     hostname \
@@ -200,15 +196,12 @@ base_min() {
     mount \
     net-tools \
     policykit-1 \
-    silversearcher-ag \
-    ssh \
     strace \
     sudo \
     tar \
     tree \
     tzdata \
     unzip \
-    emacs-gtk \
     wget \
     xz-utils \
     zip \
@@ -222,11 +215,13 @@ base_min() {
 # installs base packages
 # the utter bare minimal shit
 base() {
+  cat /etc/apt/sources.list
   base_min;
 
   apt-get update || true
   apt-get -y upgrade
 
+  echo "*** Installing base"
   apt-get install -y \
     apparmor \
     bluez \
@@ -235,6 +230,9 @@ base() {
     build-essential \
     cgroupfs-mount \
     cpufrequtils \
+    docker.io \
+    emacs-gtk \
+    exuberant-ctags \
     fwupd \
     fwupdate \
     gnupg-agent \
@@ -246,34 +244,35 @@ base() {
     pinentry-curses \
     scdaemon \
     psmisc \
-    systemd \
-    fzf \
     gdm3 \
     gh \
     htop \
     iproute2 \
-    lshw \
-    mpd \
     locate \
+    lshw \
+    libsecret-1-dev \
+    libssl-dev \
+    lm-sensors \
+    mpd \
     netbase \
     netcat \
     nftables \
     pkg-config \
+    printer-driver-brlaser \
+    prettyping \
     rsync \
+    silversearcher-ag \
+    ssh \
     software-properties-common \
+    tcptraceroute \
     texlive \
     traceroute \
     unrar \
-    tcptraceroute \
     zsh \
-    lm-sensors \
-    exuberant-ctags \
-    docker.io \
-    printer-driver-brlaser \
-    prettyping \
-    libsecret-1-dev \
-    libssl-dev \
     --no-install-recommends
+
+  echo "*** Done Installing base"
+  dpkg --get-selections | grep hold
 
   setup_sudo
 
