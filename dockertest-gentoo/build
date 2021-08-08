@@ -1,0 +1,7 @@
+docker build \
+  --build-arg TARGET_USER=casey \
+  -t dotfiles:v3 \
+  --rm \
+  --network host \
+  -f Dockerfile \
+  .. 
