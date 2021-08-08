@@ -34,12 +34,12 @@ check_is_sudo() {
 
 setup_sources_min() {
   # emerge --sync --quiet
-    # dirmngr \
+    # app-security/dirmngr \
   emerge \
-    ca-certificates \
-    curl \
+    app-misc/ca-certificates \
     app-crypt/gnupg \
-    lsb-release
+    net-misc/curl \
+    sys-apps/lsb-release
 
   # turn off translations, speed up apt update
   # mkdir -p /etc/apt/apt.conf.d
@@ -163,43 +163,41 @@ base_min() {
   # emerge --sync --quiet
   emerge --newuse --update --deep @world
 
-  emerge \
-    adduser \
-    automake \
-    bc \
-    bzip2 \
-    coreutils \
-    dnsutils \
-    expect \
-    file \
-    findutils \
-    gcc \
-    ninja-build \
-    git \
-    grep \
-    gzip \
-    hostname \
-    indent \
-    iptables \
-    iw \
-    jq \
-    less \
-    locales \
-    lsof \
-    make \
-    mount \
-    net-tools \
-    policykit-1 \
-    strace \
-    sudo \
-    tar \
-    tree \
-    tzdata \
-    unzip \
-    wget \
-    xz-utils \
-    zip \
-    --no-install-recommends
+    # adduser \
+    # hostname \
+    # locales \
+    # mount \
+    # policykit-1 \
+    # ninja-build \
+    # dnsutils \
+    # indent \
+    # tzdata \
+  emerge -uDNa \
+    sys-devel/automake \
+    app-arch/bzip2 \
+    app-arch/gzip \
+    app-arch/tar \
+    app-arch/unzip \
+    app-arch/xz-utils \
+    app-arch/zip \
+    sys-apps/coreutils \
+    sys-apps/file \
+    sys-apps/findutils \
+    sys-devel/gcc \
+    sys-devel/bc \
+    dev-vcs/git \
+    sys-apps/grep \
+    net-misc/wget \
+    net-wireless/iw \
+    sys-devel/make \
+    sys-process/lsof \
+    sys-apps/less \
+    sys-apps/net-tools \
+    dev-tcltk/expect \
+    net-firewall/nftables \
+    app-misc/jq \
+    dev-util/strace \
+    app-admin/sudo
 
   # apt -y autoremove
   # apt autoclean
