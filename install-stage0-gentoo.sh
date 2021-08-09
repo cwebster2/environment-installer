@@ -35,11 +35,12 @@ check_is_sudo() {
 setup_sources_min() {
   # emerge --sync --quiet
     # app-security/dirmngr \
-  emerge \
-    app-misc/ca-certificates \
-    app-crypt/gnupg \
-    net-misc/curl \
-    sys-apps/lsb-release
+  cat <<-EOF >>/var/lib/portage/world
+app-misc/ca-certificates
+app-crypt/gnupg
+net-misc/curl
+sys-apps/lsb-release
+EOF
 
   # turn off translations, speed up apt update
   # mkdir -p /etc/apt/apt.conf.d
@@ -159,9 +160,40 @@ setup_sources_min() {
 
 }
 
+setup_makeconf() {
+  echo "Setting up make.conf and portage use"
+  cat <<-EOF > /etc/portage/make.conf
+CFLAGS="-march=native -O2 -pipe"
+CXXFLAGS="${CFLAGS}"
+MAKEOPTS="-j12"
+ACCEPT_LICENSE="*"
+LINGUAS="en enUS ro"
+USE="gnome-keyring systemd udev pulseaudio -elogind bluetooth cups nvme thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt policykit"
+EOF
+  mkdir -p /etc/portage/package.use
+  cat <<-EOF >/etc/portage/package.use/base
+>=gnustep-base/gnustep-make-2.8.0 native-exceptions
+>=sys-devel/gcc-10.3.0-r2 objc
+>=app-text/xmlto-0.0.28-r6 text
+>=media-libs/freetype-2.10.4 harfbuzz
+>=gnome-base/gnome-control-center-40.0 networkmanager
+>=net-fs/samba-4.13.9-r2 client
+>=media-libs/harfbuzz-2.8.1 icu
+EOF
+
+cat /etc/portage/make.conf
+cat /etc/portage/package.use/base
+}
+
+do_install() {
+  emerge --newuse --update --deep --quiet-build --autounmask-write --autounmask-continue @world
+  emerge --depclean --verbose
+  emerge --clean  --verbose
+}
+
 base_min() {
+
   # emerge --sync --quiet
-  emerge --newuse --update --deep @world
 
     # adduser \
     # hostname \
@@ -172,32 +204,33 @@ base_min() {
     # dnsutils \
     # indent \
     # tzdata \
-  emerge -uDNa \
-    sys-devel/automake \
-    app-arch/bzip2 \
-    app-arch/gzip \
-    app-arch/tar \
-    app-arch/unzip \
-    app-arch/xz-utils \
-    app-arch/zip \
-    sys-apps/coreutils \
-    sys-apps/file \
-    sys-apps/findutils \
-    sys-devel/gcc \
-    sys-devel/bc \
-    dev-vcs/git \
-    sys-apps/grep \
-    net-misc/wget \
-    net-wireless/iw \
-    sys-devel/make \
-    sys-process/lsof \
-    sys-apps/less \
-    sys-apps/net-tools \
-    dev-tcltk/expect \
-    net-firewall/nftables \
-    app-misc/jq \
-    dev-util/strace \
-    app-admin/sudo
+  cat <<-EOF >>/var/lib/portage/world
+app-admin/sudo
+app-arch/bzip2
+app-arch/gzip
+app-arch/tar
+app-arch/unzip
+app-arch/xz-utils
+app-arch/zip
+app-misc/jq
+dev-tcltk/expect
+dev-util/strace
+dev-vcs/git
+net-firewall/nftables
+net-misc/wget
+net-wireless/iw
+sys-apps/coreutils
+sys-apps/file
+sys-apps/findutils
+sys-apps/grep
+sys-apps/less
+sys-apps/net-tools
+sys-devel/automake
+sys-devel/bc
+sys-devel/gcc
+sys-devel/make
+sys-process/lsof
+EOF
 
   # apt -y autoremove
   # apt autoclean
@@ -207,82 +240,75 @@ base_min() {
 # installs base packages
 # the utter bare minimal shit
 base() {
-  cat /etc/apt/sources.list
   base_min;
 
-  apt-get update || true
-  apt-get -y upgrade
-
   echo "*** Installing base"
-  apt-get install -y \
-    apparmor \
-    bluez \
-    bolt \
-    bridge-utils \
-    build-essential \
-    cgroupfs-mount \
-    cpufrequtils \
-    docker.io \
-    emacs-gtk \
-    exuberant-ctags \
-    fwupd \
-    fwupdate \
-    gnupg-agent \
-    google-cloud-sdk \
-    iwd \
-    libimobiledevice6 \
-    libpam-systemd \
-    pcscd \
-    pinentry-curses \
-    scdaemon \
-    psmisc \
-    gdm3 \
-    gh \
-    htop \
-    iproute2 \
-    locate \
-    lshw \
-    libsecret-1-dev \
-    libssl-dev \
-    lm-sensors \
-    mpd \
-    netbase \
-    netcat \
-    nftables \
-    pkg-config \
-    printer-driver-brlaser \
-    prettyping \
-    rsync \
-    silversearcher-ag \
-    ssh \
-    software-properties-common \
-    tcptraceroute \
-    texlive \
-    traceroute \
-    unrar \
-    zsh \
-    --no-install-recommends
+    # cgroupfs-mount \
+    # cpufrequtils \
+    # fwupdate \
+    # gnupg-agent \
+    # google-cloud-sdk \
+    # libimobiledevice6 \
+    # libpam-systemd \
+    # pcscd \
+    # scdaemon \
+    # pinentry-curses \
+    # gh \
+    # texlive \
+    # software-properties-common \
+    # locate \
+    # mpd \
+    # netbase \
+# gnome-base/gdm
+  cat <<-EOF >>/var/lib/portage/world
+app-arch/unar
+app-crypt/pinentry
+app-editors/emacs
+app-emulation/docker
+app-emulation/docker-cli
+app-emulation/docker-compose
+app-emulation/docker-credential-helpers
+app-misc/ranger
+app-shells/zsh
+dev-util/ctags
+dev-util/pkgconf
+exuberant-ctags
+net-analyzer/netcat
+net-analyzer/prettyping
+net-analyzer/tcptraceroute
+net-analyzer/traceroute
+net-firewall/nftables
+net-libs/libssh2
+net-misc/bridge-utils
+net-misc/openssh
+net-misc/rsync
+net-print/brlaser
+net-wireless/bluez
+net-wireless/iwd
+sys-apps/bolt
+sys-apps/fwupd
+sys-apps/iproute2
+sys-apps/lm-sensors
+sys-apps/lshw
+sys-apps/the_silver_searcher
+sys-process/htop
+sys-process/psmisc
+EOF
 
-  echo "*** Done Installing base"
-  dpkg --get-selections | grep hold
+# sys-apps/apparmor
 
-  setup_sudo
-
-  apt -y autoremove
-  apt autoclean
-  apt clean
 
   #cat <<- EOF > /etc/default/locale
   ##  File generated by update-locale
   #LANG=en_US.UTF-8
   #EOF
 
-  sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
-  locale-gen -a
-  dpkg-reconfigure --frontend=noninteractive locales && \
-    update-locale LANG=en_US.UTF-8
+  # sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
+  # locale-gen -a
+  # dpkg-reconfigure --frontend=noninteractive locales && \
+    # update-locale LANG=en_US.UTF-8
 
-  sed -i '/WaylendEnable=false/ s/^#\s*//' /etc/gdm3/daemon.conf
+  # sed -i '/WaylendEnable=false/ s/^#\s*//' /etc/gdm3/daemon.conf
   }
 
 # setup sudo for a user
@@ -335,17 +361,24 @@ install_graphics() {
     exit 1
   fi
 
-  local pkgs=( xorg xserver-xorg xserver-xorg-input-libinput xserver-xorg-input-synaptics )
 
   case $system in
     "intel")
-      pkgs+=( xserver-xorg-video-intel )
+      echo 'VIDEO_CARDS="intel"' >> /etc/portage/make.conf
       ;;
     "geforce")
-      pkgs+=( nvidia-driver )
+      echo 'VIDEO_CARDS="nvidia"' >> /etc/portage/make.conf
+cat <<-EOF >> /var/lib/portage/world
+x11-drivers/nvidia-drivers
+EOF
       ;;
     "optimus")
-      pkgs+=( nvidia-kernel-dkms bumblebee-nvidia primus )
+      echo 'VIDEO_CARDS="nvidia"' >> /etc/portage/make.conf
+cat <<-EOF >> /var/lib/portage/world
+x11-drivers/nvidia-drivers
+x11-misc/bumblebee
+x11-misc/primus
+EOF
       ;;
     *)
       echo "You need to specify whether it's intel, geforce or optimus"
@@ -353,10 +386,13 @@ install_graphics() {
       ;;
   esac
 
-  apt update || true
-  apt -y upgrade
+cat <<-EOF >> /var/lib/portage/world
+x11-base/xorg-x11
+x11-base/xorg-server
+x11-base/xorg-drivers
+x11-base/xorg-proto
+EOF
 
-  apt install -y "${pkgs[@]}" --no-install-recommends
 }
 
 # install stuff for i3 window manager
@@ -409,9 +445,6 @@ install_wmapps() {
     keybase \
     --no-install-recommends
 
-  apt -y autoremove
-  apt autoclean
-  apt clean
 }
 
 usage() {
@@ -435,26 +468,34 @@ main() {
     check_is_sudo
     get_user
 
+    setup_makeconf
     # setup /etc/apt/sources.list
     setup_sources
 
     base
+    do_install
+    setup_sudo
   elif [[ $cmd == "basemin" ]]; then
     check_is_sudo
     get_user
 
+    setup_makeconf
     # setup /etc/apt/sources.list
     setup_sources_min
 
     base_min
+    do_install
+    setup_sudo
   elif [[ $cmd == "graphics" ]]; then
     check_is_sudo
 
     install_graphics "$2"
+    do_install
   elif [[ $cmd == "wm" ]]; then
     check_is_sudo
 
     install_wmapps
+    do_install
   else
     usage
   fi
