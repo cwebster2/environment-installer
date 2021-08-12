@@ -162,31 +162,34 @@ EOF
 
 setup_makeconf() {
   echo "Setting up make.conf and portage use"
+#USE="gnome-keyring systemd udev pulseaudio -elogind bluetooth cups nvme thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt policykit"
   cat <<-EOF > /etc/portage/make.conf
-CFLAGS="-march=native -O2 -pipe"
-CXXFLAGS="${CFLAGS}"
+COMMON_FLAGS="-march=native -O2 -pipe"
+CFLAGS="\${COMMON_FLAGS}"
+CXXFLAGS="\${COMMON_FLAGS}"
+FCFLAGS="\${COMMON_FLAGS}"
+FFLAGS="\${COMMON_FLAGS}"
 MAKEOPTS="-j12"
 ACCEPT_LICENSE="*"
 LINGUAS="en enUS ro"
-USE="gnome-keyring systemd udev pulseaudio -elogind bluetooth cups nvme thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt policykit"
+LC_MESSAGES=C
+
+USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt5 policykit"
 EOF
-  mkdir -p /etc/portage/package.use
-  cat <<-EOF >/etc/portage/package.use/base
->=gnustep-base/gnustep-make-2.8.0 native-exceptions
->=sys-devel/gcc-10.3.0-r2 objc
->=app-text/xmlto-0.0.28-r6 text
->=media-libs/freetype-2.10.4 harfbuzz
->=gnome-base/gnome-control-center-40.0 networkmanager
->=net-fs/samba-4.13.9-r2 client
->=media-libs/harfbuzz-2.8.1 icu
+   mkdir -p /etc/portage/package.use
+   cat <<-EOF >/etc/portage/package.use/base
+*/* -branding -elogind -qt3support -wayland -aqua -xinerama
+app-crypt/pinentry gtk qt5 ncurses
+net-print/cups-filters jpeg pdf png tiff postscript
+sys-apps/fwupd nvme flashrom synaptics tpm
 EOF
 
 cat /etc/portage/make.conf
-cat /etc/portage/package.use/base
+# cat /etc/portage/package.use/base
 }
 
 do_install() {
-  emerge --newuse --update --deep --quiet-build --autounmask-write --autounmask-continue @world
+  emerge --newuse --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
   emerge --depclean --verbose
   emerge --clean  --verbose
 }
