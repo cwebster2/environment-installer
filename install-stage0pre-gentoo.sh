@@ -2,7 +2,10 @@
 
 set -euo pipefail
 
-do_prep() {
+ROOTDATE=$(date +%Y%M%d)
+TARGET_USER=${TARGET_USER:-casey}
+
+partition_disk() {
   # boot from sysrescuecd with zfs 2 baked into it
   # https://xyinn.org/gentoo/livecd/
   # get in and then do this stuff
@@ -23,7 +26,9 @@ do_prep() {
     set 1 boot on \
     print \
     quit
+}
 
+create_filesystems() {
   mkfs.fat -F32 /dev/${DISK}1
 
   zpool create -f \
@@ -65,7 +70,9 @@ do_prep() {
   zpool status
 
   zfs lis
+}
 
+prepare_chroot() {
   # prepare for chroot
   cd /mnt/gentoo
   mkdir boot/efi
@@ -87,14 +94,12 @@ do_prep() {
   mount --make-rslave proc
   mount --make-rslave sys
 
-  env -i HOME=/root TERM=$TERM DISK=$DISK chroot . bash -l
-
-  cat <<-EOF >>/etc/fstab
+  cat <<-EOF >>etc/fstab
 /dev/${DISK}1               /boot/efi       vfat            noauto        1 2
 /dev/${DISK}3               none            swap            sw            0 0
 EOF
 
-  cat <<-EOF >/etc/portage/make.conf
+  cat <<-EOF >etc/portage/make.conf
 # See /usr/share/portage/config/make.conf.example
 USE="initramfs"
 
@@ -120,41 +125,44 @@ LC_MESSAGES=C
 GRUB_PLATFORMS="efi-64 coreboot"
 EOF
 
-  mkdir -p /etc/portage/package.use
+  mkdir -p etc/portage/package.use
+  echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
+  echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
+
+}
+
+
+do_chroot() {
+  env -i HOME=/root TERM=$TERM DISK=$DISK TARGET_USER=$TARGET_USER ROOTDATE=$ROOTDATE chroot . bash -l
+
 
   cp /usr/share/portage/config/repos.conf /etc/portage/repos.conf
   emerge --sync
 
   eselect news read
   emerge -uDNav @world
-  emerge neovim net-misc/dhcp
-
-  echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
-  echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
-  emerge --verbose ys-kernel/genkernel sys-boot/grub
+  emerge neovim net-misc/dhcp sys-kernel/genkernel
 
   # need to gen kernel config make menuconfig
   select kernel set 1
   genkernel --makeopts=-j4 --no-install kernel
 
   # now we have kernel we can install zfs-kmod
-  emerge --verbose sys-fs/zfs sys-fs/zfs-kmod
-  genkernel --makeopts=-j4 --zfs all
+  emerge --verbose sys-fs/zfs sys-fs/zfs-kmod sys-boot/grub
+  hostid > /etc/hostid
+  genkernel --makeopts=-j4 --zfs --bootloader=grub2 all
 
   if [ "$(grub-probe /boot)" != "zfs" ]; then
     echo "grub-probe did not return zfs, aborting"
     exit 1
   fi
 
-  cat <<-EOF >>/etc/default/grub
-GRUB_DISTRIBUTOR="Gentoo Linux"
-GRUB_CMDLINE_LINUX="dozfs real_root=ZFS=rpool/gentoo/root-${ROOTDATE}"
+  cat <<-EOF >>etc/default/grub
+GRUB_CMDLINE_LINUX="dozfs root=ZFS"
 EOF
 
   mount -o remount,rw /sys/firmware/efi/efivars/
   grub-install --efi-directory=/boot/efi
-
-  ls /boot/grub/*zfs.mod
   grub-mkconfig -o /boot/grub/grub.cfg
 
   systemctl enable zfs.target
@@ -166,13 +174,15 @@ EOF
   useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
   passwd ${TARGET_USER}
   setup_sudo
+}
 
+cleanup_chroot() {
   exit
   umount -lR {dev,proc,sys}
   cd
   swapoff /dev/${DISK}3
-  zpool export 
-
+  # neet do unmount stuff, export and reboot
+  zpool export
 }
 
 setup_profile() {
@@ -223,6 +233,7 @@ bring_up_to_baseline() {
 }
 
 setup_sudo() {
+  emerge app-admin/sudo
   # add user to sudoers
   adduser "$TARGET_USER" sudo
 
@@ -232,8 +243,8 @@ setup_sudo() {
   gpasswd -a "$TARGET_USER" systemd-network
 
   # create docker group
-  sudo groupadd -f docker
-  sudo gpasswd -a "$TARGET_USER" docker
+  # sudo groupadd -f docker
+  # sudo gpasswd -a "$TARGET_USER" docker
 
   # add go path to secure path
   { \
@@ -241,19 +252,7 @@ setup_sudo() {
     echo -e 'Defaults	env_keep += "ftp_proxy http_proxy https_proxy no_proxy GOPATH EDITOR"'; \
     echo -e "${TARGET_USER} ALL=(ALL) NOPASSWD:ALL"; \
     echo -e "${TARGET_USER} ALL=NOPASSWD: /sbin/ifconfig, /sbin/ifup, /sbin/ifdown, /sbin/ifquery"; \
-  } >> /etc/sudoers
-
-  # setup downloads folder as tmpfs
-  # that way things are removed on reboot
-  # i like things clean but you may not want this
-  mkdir -p "/home/${TARGET_USER}/Downloads"
-  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
-  echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
-  (
-    set +e
-    sudo mount "/home/${TARGET_USER}/Downloads"
-    chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
-  )
+  } > "/etc/sudoers.d/${TARGET_USER}"
 }
 
 usage() {
