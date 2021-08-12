@@ -273,7 +273,7 @@ cleanup_chroot() {
   echo "***"
   echo "Cleaning up"
   echo "***"
-  umount -lR {dev,proc,sys}
+  umount -lR /mnt/gentoo/{dev,proc,sys}
   cd /
   zfs umount -a
   swapoff /dev/${DISK}3
