@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 
+# curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-gentoo.sh
+
 set -euo pipefail
 
-ROOTDATE=$(date +%Y%M%d)
-TARGET_USER=${TARGET_USER:-casey}
-STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
+export ROOTDATE=$(date +%Y%M%d)
+export TARGET_USER=${TARGET_USER:-casey}
+export STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+export GRAPHICS=${GRAPHICS:-intel}
 
 partition_disk() {
   echo "***"
@@ -169,7 +173,7 @@ EOF
   echo "***"
   echo "Syncing portage tree, this could tage some time"
   echo "***"
-  emerge --quiet --sync
+  update_ports
 
   # mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
 
@@ -317,17 +321,94 @@ setup_sudo() {
   gpasswd -a "$TARGET_USER" systemd-journal
   gpasswd -a "$TARGET_USER" systemd-network
 
-  # create docker group
-  # sudo groupadd -f docker
-  # sudo gpasswd -a "$TARGET_USER" docker
-
-  # add go path to secure path
   { \
     echo -e "Defaults	secure_path=\"/usr/local/go/bin:/home/${TARGET_USER}/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/bcc/tools:/home/${TARGET_USER}/.cargo/bin\""; \
     echo -e 'Defaults	env_keep += "ftp_proxy http_proxy https_proxy no_proxy GOPATH EDITOR"'; \
     echo -e "${TARGET_USER} ALL=(ALL) NOPASSWD:ALL"; \
     echo -e "${TARGET_USER} ALL=NOPASSWD: /sbin/ifconfig, /sbin/ifup, /sbin/ifdown, /sbin/ifquery"; \
   } > "/etc/sudoers.d/${TARGET_USER}"
+}
+
+select_base() {
+  cat <<-EOF >>/var/lib/portage/world
+app-admin/sudo
+app-arch/bzip2
+app-arch/gzip
+app-arch/tar
+app-arch/unar
+app-arch/unzip
+app-arch/xz-utils
+app-arch/zip
+app-crypt/gnupg
+app-crypt/pinentry
+app-editors/emacs
+app-emulation/docker
+app-emulation/docker-cli
+app-emulation/docker-compose
+app-emulation/docker-credential-helpers
+app-misc/ca-certificates
+app-misc/jq
+app-misc/ranger
+app-shells/zsh
+dev-tcltk/expect
+dev-util/ctags
+dev-util/pkgconf
+dev-util/strace
+dev-vcs/git
+exuberant-ctags
+net-analyzer/netcat
+net-analyzer/prettyping
+net-analyzer/tcptraceroute
+net-analyzer/traceroute
+net-firewall/nftables
+net-firewall/nftables
+net-libs/libssh2
+net-misc/bridge-utils
+net-misc/curl
+net-misc/openssh
+net-misc/rsync
+net-misc/wget
+net-print/brlaser
+net-wireless/bluez
+net-wireless/iw
+net-wireless/iwd
+sys-apps/bolt
+sys-apps/coreutils
+sys-apps/file
+sys-apps/findutils
+sys-apps/fwupd
+sys-apps/grep
+sys-apps/iproute2
+sys-apps/less
+sys-apps/lm-sensors
+sys-apps/lsb-release
+sys-apps/lshw
+sys-apps/net-tools
+sys-apps/the_silver_searcher
+sys-devel/automake
+sys-devel/bc
+sys-devel/gcc
+sys-devel/make
+sys-process/htop
+sys-process/lsof
+sys-process/psmisc
+EOF
+
+   cat <<-EOF >>/etc/portage/make.conf
+USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt5 policykit"
+EOF
+}
+
+do_emerge() {
+  emerge --newuse --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
+  emerge --clean  --verbose
+}
+
+check_is_sudo() {
+  if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root."
+    exit
+  fi
 }
 
 usage() {
@@ -368,6 +449,8 @@ main() {
   elif [[ $cmd == "profile" ]]; then
     setup_profile
     bring_up_to_baseline
+    select_base
+    do_emerge
     echo "TODO"
   else
     usage
