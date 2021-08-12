@@ -95,9 +95,10 @@ prepare_chroot() {
   mount "/dev/${DISK}1" boot/efi
 
   # get amd64+systemd stage3 archive
-  curl -o stage3.tar.xz https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/${STAGE3}
+  echo ${STAGE3}
+  curl -L -o stage3.tar.xz https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/${STAGE3}
   tar xpf stage3.tar.xz
-  rm stage3.xz
+  rm stage3.tar.xz
 
   mkdir etc/zfs
   cp /etc/zfs/zpool.cache etc/zfs
@@ -119,11 +120,13 @@ EOF
 
 do_chroot() {
   echo "***"
+  echo "Chrooting"
   echo "***"
-  echo "***"
+  cd ~
   SCRIPTNAME=$(basename "$0")
   PATHNAME=$(dirname "$0")
-  cp "${PATHNAME}/${SCRIPTNAME}" ./install-stage0.sh
+  cp "${PATHNAME}/${SCRIPTNAME}" /mnt/gentoo/install-stage0.sh
+  cd /mnt/genoo
   env -i HOME=/root \
     TERM=$TERM \
     DISK=$DISK \
@@ -164,6 +167,7 @@ LC_MESSAGES=C
 GRUB_PLATFORMS="efi-64 coreboot"
 EOF
 
+  mkdir -p /var/tmp/portage
   mkdir -p etc/portage/package.use
   echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
   echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
@@ -178,14 +182,14 @@ EOF
   # mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
 
   eselect news read
-  emerge --quiet-build -uDNav @world
+  emerge --quiet-build -uDNv @world
 }
 
 setup_kernel() {
   echo "***"
   echo "Setting up kernel"
   echo "***"
-  emerge --quiet-build net-misc/dhcp sys-kernel/genkernel
+  emerge --quiet-build net-misc/dhcp sys-kernel/genkernel sys-kernel/gentoo-sources
 
   # need to gen kernel config make menuconfig
   eselect kernel set 1
