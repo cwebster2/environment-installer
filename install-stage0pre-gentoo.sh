@@ -4,8 +4,12 @@ set -euo pipefail
 
 ROOTDATE=$(date +%Y%M%d)
 TARGET_USER=${TARGET_USER:-casey}
+STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
 
 partition_disk() {
+  echo "***"
+  echo "Partitioning disks for efi, boot, swap and rpool"
+  echo "***"
   # boot from sysrescuecd with zfs 2 baked into it
   # https://xyinn.org/gentoo/livecd/
   # get in and then do this stuff
@@ -29,6 +33,9 @@ partition_disk() {
 }
 
 create_filesystems() {
+  echo "***"
+  echo "Creating filesystems, swap and zfs pools"
+  echo "***"
   mkfs.fat -F32 /dev/${DISK}1
 
   zpool create -f \
@@ -55,6 +62,8 @@ create_filesystems() {
 
   zfs create rpool/data
   zfs create -o mountpoint=/home rpool/data/home
+  zfs create -o mountpoint=/var/lib/docker rpool/data/docker
+  zfs set quota=100G rpool/data/docker
 
   zpool create -f -d \
     -o ashift=12 \
@@ -73,19 +82,23 @@ create_filesystems() {
 }
 
 prepare_chroot() {
+  echo "***"
+  echo "Preparing for chrooting"
+  echo "***"
   # prepare for chroot
   cd /mnt/gentoo
   mkdir boot/efi
   mount "/dev/${DISK}1" boot/efi
 
   # get amd64+systemd stage3 archive
-  wget https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz
-  tar xpf stage3-amd64-systemd-20210808T170546Z.tar.xz
+  curl -o stage3.tar.xz https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/${STAGE3}
+  tar xpf stage3.tar.xz
+  rm stage3.xz
 
   mkdir etc/zfs
   cp /etc/zfs/zpool.cache etc/zfs
 
-  cp /etc/resolv.conf etc/
+  cp --dereference /etc/resolv.conf etc/
 
   mount --rbind /dev dev
   mount --rbind /proc proc
@@ -98,6 +111,28 @@ prepare_chroot() {
 /dev/${DISK}1               /boot/efi       vfat            noauto        1 2
 /dev/${DISK}3               none            swap            sw            0 0
 EOF
+}
+
+do_chroot() {
+  echo "***"
+  echo "***"
+  echo "***"
+  SCRIPTNAME=$(basename "$0")
+  PATHNAME=$(dirname "$0")
+  cp "${PATHNAME}/${SCRIPTNAME}" ./install-stage0.sh
+  env -i HOME=/root \
+    TERM=$TERM \
+    DISK=$DISK \
+    TARGET_USER=$TARGET_USER \
+    ROOTDATE=$ROOTDATE \
+    HOSTNAME=$HOSTNAME \
+    chroot . bash -l -c "./install-stage0.sh chrooted"
+  }
+
+setup_portage() {
+  echo "***"
+  echo "Setting up portage"
+  echo "***"
 
   cat <<-EOF >etc/portage/make.conf
 # See /usr/share/portage/config/make.conf.example
@@ -128,28 +163,33 @@ EOF
   mkdir -p etc/portage/package.use
   echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
   echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
+  mkdir -p etc/portage/repos.conf
+  cp /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
 
-}
+  echo "***"
+  echo "Syncing portage tree, this could tage some time"
+  echo "***"
+  emerge --quiet --sync
 
-
-do_chroot() {
-  env -i HOME=/root TERM=$TERM DISK=$DISK TARGET_USER=$TARGET_USER ROOTDATE=$ROOTDATE chroot . bash -l
-
-
-  cp /usr/share/portage/config/repos.conf /etc/portage/repos.conf
-  emerge --sync
+  # mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
 
   eselect news read
-  emerge -uDNav @world
-  emerge neovim net-misc/dhcp sys-kernel/genkernel
+  emerge --quiet-build -uDNav @world
+}
+
+setup_kernel() {
+  echo "***"
+  echo "Setting up kernel"
+  echo "***"
+  emerge --quiet-build net-misc/dhcp sys-kernel/genkernel
 
   # need to gen kernel config make menuconfig
-  select kernel set 1
+  eselect kernel set 1
   genkernel --makeopts=-j4 --no-install kernel
 
   # now we have kernel we can install zfs-kmod
-  emerge --verbose sys-fs/zfs sys-fs/zfs-kmod sys-boot/grub
-  hostid > /etc/hostid
+  emerge --quiet-build sys-fs/zfs sys-fs/zfs-kmod sys-boot/grub
+  hostid >/etc/hostid
   genkernel --makeopts=-j4 --zfs --bootloader=grub2 all
 
   if [ "$(grub-probe /boot)" != "zfs" ]; then
@@ -157,6 +197,9 @@ do_chroot() {
     exit 1
   fi
 
+  echo "***"
+  echo "Setting up booting"
+  echo "***"
   cat <<-EOF >>etc/default/grub
 GRUB_CMDLINE_LINUX="dozfs root=ZFS"
 EOF
@@ -165,24 +208,77 @@ EOF
   grub-install --efi-directory=/boot/efi
   grub-mkconfig -o /boot/grub/grub.cfg
 
+  echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
   systemctl enable zfs.target
   systemctl enable zfs-import-cache
   systemctl enable zfs-mount
   systemctl enable zfs-import.target
+}
 
+setup_user() {
   TARGET_USER=${TARGET_USER:-casey}
   useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
+  echo "***"
+  echo "Setting up user account for ${TARGET_USER}, please set a password"
+  echo "***"
   passwd ${TARGET_USER}
-  setup_sudo
+}
+
+setup_timezone() {
+  # timezoen
+  echo "***"
+  echo "Setting Timezone"
+  echo "***"
+  ln -sf /usr/share/zoneinfo/America/Chicago /etc/localtime
+}
+
+setup_locale() {
+  echo "***"
+  echo "***"
+  echo "***"
+  # locale
+  echo "LANG=en_US.utf8" > /etc/locale.conf
+  env-update && source /etc/profile
+}
+
+setup_hostname() {
+  echo "***"
+  echo "***"
+  echo "***"
+  # hostname
+  hostnamectl set-hostname ${HOSTNAME}
+}
+
+setup_network() {
+  echo "***"
+  echo "***"
+  echo "***"
+  # networking
+  cat <<-EOF > /etc/systemd/network/50-dhcp.network
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+EOF
+  systemctl enable systemd-networkd.service
+
 }
 
 cleanup_chroot() {
-  exit
+  echo "***"
+  echo "Cleaning up"
+  echo "***"
   umount -lR {dev,proc,sys}
-  cd
+  cd /
+  zfs umount -a
   swapoff /dev/${DISK}3
   # neet do unmount stuff, export and reboot
-  zpool export
+  zpool export rpool
+  zpool export boot
+  echo "***"
+  echo "Finished with the initial setup."
+  echo "***"
 }
 
 setup_profile() {
@@ -190,25 +286,6 @@ setup_profile() {
   echo Selecting desktop systemd profile
   echo "***"
   eselect profile set $(eselect profile list | grep "amd64/17.1/desktop/systemd" | tr -d '[]' | awk '{print $1}')
-}
-
-setup_makeconf() {
-  echo "***"
-  echo "Setting up make.conf and portage use"
-  echo "***"
-#USE="gnome-keyring systemd udev pulseaudio -elogind bluetooth cups nvme thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt policykit"
-  cat <<-EOF > /etc/portage/make.conf
-COMMON_FLAGS="-march=native -O2 -pipe"
-CFLAGS="\${COMMON_FLAGS}"
-CXXFLAGS="\${COMMON_FLAGS}"
-FCFLAGS="\${COMMON_FLAGS}"
-FFLAGS="\${COMMON_FLAGS}"
-MAKEOPTS="-j12"
-ACCEPT_LICENSE="*"
-LINGUAS="en enUS ro"
-LC_MESSAGES=C
-EOF
-cat /etc/portage/make.conf
 }
 
 update_ports() {
@@ -233,12 +310,10 @@ bring_up_to_baseline() {
 }
 
 setup_sudo() {
-  emerge app-admin/sudo
-  # add user to sudoers
-  adduser "$TARGET_USER" sudo
-
-  # add user to systemd groups
-  # then you wont need sudo to view logs and shit
+  echo "***"
+  echo "Setting up sudo for ${TARGET_USER}"
+  echo "***"
+  emerge --quiet-build app-admin/sudo
   gpasswd -a "$TARGET_USER" systemd-journal
   gpasswd -a "$TARGET_USER" systemd-network
 
@@ -258,8 +333,10 @@ setup_sudo() {
 usage() {
   echo -e "install.sh\\n\\tThis script preps a gentoo laptop\\n"
   echo "Usage:"
-  echo "  updatebase                          - Recompiles world"
-  echo "  setprofile                          - Sets the desktop/systemd profile and rebuilds"
+  echo "  prepare                             - Prepare new maching for first boot"
+  echo "  chrooted                            - Initial chroot installation"
+  echo "  base                                - Recompiles world"
+  echo "  profile                             - Sets the desktop/systemd profile and rebuilds"
 }
 
 main() {
@@ -270,14 +347,28 @@ main() {
     exit 1
   fi
 
-  if [[ $cmd == "updatebase" ]]; then
+  if [[ $cmd == "prepare" ]]; then
+    partition_disk
+    create_filesystems
+    prepare_chroot
+    do_chroot
+    cleanup_chroot
+    echo "reboot and run insall-stage0.sh profile"
+  elif [[ $cmd == "chrooted" ]]; then
+    setup_portage
+    setup_kernel
+    setup_user
+    setup_timezone
+    setup_locale
+    setup_hostname
+    setup_network
+  elif [[ $cmd == "base" ]]; then
     # update_ports
-    maybe_fix
-    setup_makeconf
+    echo "TODO"
+  elif [[ $cmd == "profile" ]]; then
     setup_profile
     bring_up_to_baseline
-  elif [[ $cmd == "setprofile" ]]; then
-    bring_up_to_baseline
+    echo "TODO"
   else
     usage
   fi
