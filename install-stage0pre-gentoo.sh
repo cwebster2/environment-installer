@@ -2,7 +2,7 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-gentoo.sh
 
-set -euo pipefail
+set -eo pipefail
 
 export ROOTDATE=$(date +%Y%M%d)
 export TARGET_USER=${TARGET_USER:-casey}
@@ -422,6 +422,8 @@ usage() {
 
 main() {
   local cmd=$1
+
+  set -u
 
   if [[ -z "$cmd" ]]; then
     usage
