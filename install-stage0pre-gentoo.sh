@@ -82,7 +82,7 @@ create_filesystems() {
 
   zpool status
 
-  zfs lis
+  zfs list
 }
 
 prepare_chroot() {
