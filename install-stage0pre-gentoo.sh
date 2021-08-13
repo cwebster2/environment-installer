@@ -377,6 +377,7 @@ dev-tcltk/expect
 dev-util/ctags
 dev-util/pkgconf
 dev-util/strace
+dev-util/github-cli
 dev-vcs/git
 exuberant-ctags
 net-analyzer/netcat
@@ -420,6 +421,8 @@ EOF
   update_use "gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
 
   echo "dev-libs/boost numpy python" >> /etc/portage/package.use/boost
+  mkdir -p /etc/portage/package.accept_keywords
+  echo "dev-util/github-cli ~amd64" >> /etc/portage/package.accept_keywords/gh
 }
 
 update_use() {
@@ -429,12 +432,85 @@ update_use() {
   sed -i 's/USE=.*/USE="${RESULTUSE}"/' /etc/portage/make.conf
 }
 
+set_video_cards() {
+  let NEWVIDEO=$1
+  sed -i 's/VIDEO_CARDS=.*/VIDEO_CARDS="${NEWVIDEO}"/' /etc/portage/make.conf
+}
+
 select_laptop() {
   #uptade_use if needed
+  cat <<-EOF >>/var/lib/portage/world
+EOF
 }
 
 select_wm() {
   #uptade_use if needed
+  case $GRAPHICS in
+    "intel")
+      set_video_cards "intel i965 iris"
+  cat <<-EOF >> /var/lib/portage/world
+x11-drivers/xf86-video-intel
+x11-drivers/libva-intel-driver
+x11-libs/libva-intel-media-driver
+EOF
+  echo "x11-drivers/xf86-video-intel dri sna tools udev uxa xvmc" >> /etc/portage/package.use/video
+      ;;
+    "geforce")
+      set_video_cards "nvidia"
+  cat <<-EOF >> /var/lib/portage/world
+x11-drivers/nvidia-drivers
+EOF
+      ;;
+    "optimus")
+      set_video_cards "nvidia intel"
+  cat <<-EOF >> /var/lib/portage/world
+x11-drivers/nvidia-drivers
+x11-misc/bumblebee
+x11-misc/primus
+EOF
+      ;;
+    *)
+      echo "You need to specify whether it's intel, geforce or optimus"
+      exit 1
+      ;;
+  esac
+
+cat <<-EOF >> /var/lib/portage/world
+app-crypt/keybase
+app-editors/vscode
+app-misc/neofetch
+dev-libs/weston
+game-util/lutris
+games-emulation/higan
+gnome-extra/gucharmap
+gui-apps/swaybg
+gui-apps/swayidle
+gui-apps/swaylock
+gui-apps/waybar
+gui-wm/sway
+kde-misc/kdeconnect
+media-gfx/flameshot
+media-gfx/inkscape
+media-sound/alsa-utils
+media-sound/pavucontrol
+media-sound/playerctl
+media-sound/pulseaudio
+media-sound/pulseaudio-modules-bt
+media-sound/spotify
+media-video/vlc
+net-im/slack
+net-im/teams
+net-misc/remmina
+www-client/google-chrome
+www-client/qutebrowser
+www-clinet/firefox
+x11-base/xwayland
+x11-terms/kitty
+x11-terms/kitty-terminfo
+EOF
+
+  echo "dev-libs/weston drm wayland-compositor xwayland" >> /etc/portage/package.use/wayland
+
 }
 
 do_emerge() {
