@@ -42,6 +42,7 @@ create_filesystems() {
   echo "***"
   mkfs.fat -F32 /dev/${DISK}1
 
+  echo "rpool will ask for a passphrase"
   zpool create -f \
     -o ashift=12 \
     -o cachefile= \
@@ -246,17 +247,20 @@ setup_locale() {
   echo "***"
   echo "***"
   # locale
-  echo "LANG=en_US.utf8" > /etc/locale.conf
+  # TODO fix this to one that is supported
+  echo "LANG=\"en_US.utf8\"" >> /etc/locale.conf
+  echo "en_US.UTF8 UTF-8" >> /etc/locale.gen
+  locale-gen
   env-update && source /etc/profile
 }
 
 setup_hostname() {
   echo "***"
-  echo "***"
+  echo "Setup hostname"
   echo "***"
   # hostname
   # cant run this until after first boot
-  #hostnamectl set-hostname ${HOSTNAME}
+  hostnamectl set-hostname ${HOSTNAME}
 }
 
 setup_network() {
@@ -284,6 +288,7 @@ cleanup_chroot() {
   zfs umount -a
   swapoff /dev/${DISK}3
   # neet do unmount stuff, export and reboot
+  # TODO fix exporting rpool
   zpool export rpool
   zpool export boot
   echo "***"
@@ -449,12 +454,12 @@ main() {
     setup_user
     setup_timezone
     setup_locale
-    setup_hostname
     setup_network
   elif [[ $cmd == "base" ]]; then
     # update_ports
     echo "TODO"
   elif [[ $cmd == "profile" ]]; then
+    setup_hostname
     setup_profile
     bring_up_to_baseline
     select_base
