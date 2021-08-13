@@ -230,6 +230,7 @@ setup_user() {
   echo "Setting up user account for ${TARGET_USER}, please set a password"
   echo "***"
   passwd ${TARGET_USER}
+  setup_sudo
 }
 
 setup_timezone() {
@@ -254,7 +255,8 @@ setup_hostname() {
   echo "***"
   echo "***"
   # hostname
-  hostnamectl set-hostname ${HOSTNAME}
+  # cant run this until after first boot
+  #hostnamectl set-hostname ${HOSTNAME}
 }
 
 setup_network() {
@@ -277,7 +279,7 @@ cleanup_chroot() {
   echo "***"
   echo "Cleaning up"
   echo "***"
-  umount -lR /mnt/gentoo/{dev,proc,sys}
+  umount -lR /mnt/gentoo/{dev,proc,sys,boot}
   cd /
   zfs umount -a
   swapoff /dev/${DISK}3
