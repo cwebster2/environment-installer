@@ -9,6 +9,8 @@ export TARGET_USER=${TARGET_USER:-casey}
 export STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
+#export SSID=set this
+#export WPA_PASSPHRASE=set this
 
 partition_disk() {
   echo "***"
@@ -146,7 +148,7 @@ setup_portage() {
 # See /usr/share/portage/config/make.conf.example
 USE="initramfs"
 
-MAKEOPTS="-j5"
+MAKEOPTS="-j$(cat /proc/cpuinfo | grep "core id" | wc -l)"
 
 COMMON_FLAGS="-march=native -O2 -pipe"
 CFLAGS="\${COMMON_FLAGS}"
@@ -166,7 +168,7 @@ LINGUAS="en enUS ro"
 
 LC_MESSAGES=C
 GRUB_PLATFORMS="efi-64 coreboot"
-VIDEO_CARDS="intel"
+VIDEO_CARDS="${GRAPHICS}"
 LLVM_TARGETS="X86 AArch64 RISCV WebAssembly"
 EOF
 
@@ -227,17 +229,16 @@ EOF
 }
 
 setup_user() {
-  TARGET_USER=${TARGET_USER:-casey}
-  useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
   echo "***"
   echo "Setting up user account for ${TARGET_USER}, please set a password"
   echo "***"
+  TARGET_USER=${TARGET_USER:-casey}
+  useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
   passwd ${TARGET_USER}
   setup_sudo
 }
 
 setup_timezone() {
-  # timezoen
   echo "***"
   echo "Setting Timezone"
   echo "***"
@@ -246,10 +247,8 @@ setup_timezone() {
 
 setup_locale() {
   echo "***"
+  echo "Setting english utf8 locale"
   echo "***"
-  echo "***"
-  # locale
-  # TODO fix this to one that is supported
   echo "LANG=\"en_US.utf8\"" >> /etc/locale.conf
   echo "en_US.UTF8 UTF-8" >> /etc/locale.gen
   locale-gen
@@ -260,16 +259,14 @@ setup_hostname() {
   echo "***"
   echo "Setup hostname"
   echo "***"
-  # hostname
   # cant run this until after first boot
   hostnamectl set-hostname ${HOSTNAME}
 }
 
 setup_network() {
   echo "***"
+  echo "Setting up dhcp for ethernet interfaces."
   echo "***"
-  echo "***"
-  # networking
   cat <<-EOF > /etc/systemd/network/50-dhcp.network
 [Match]
 Name=en*
@@ -277,6 +274,24 @@ Name=en*
 [Network]
 DHCP=yes
 EOF
+  cat <<-EOF > /etc/systemd/network/00-wireless-dhcp.network
+[Match]
+Name=wlan0
+
+[Network]
+DHCP=yes
+EOF
+  emerge --quiet-build --verbose net-wireless/iw net-wireless/wpa_supplicant
+  cat <<-EOF > /etc/wpa_supplicant/wpa_supplicant.conf
+# Allow users in the 'wheel' group to control wpa_supplicant
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
+
+# Make this file writable for wpa_gui / wpa_cli
+update_config=1
+EOF
+  wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
+
+  systemctl enable wpa_supplicant@wlan0.service
   systemctl enable systemd-networkd.service
 
 }
@@ -303,6 +318,8 @@ setup_profile() {
   echo Selecting desktop systemd profile
   echo "***"
   eselect profile set $(eselect profile list | grep "amd64/17.1/desktop/systemd" | tr -d '[]' | awk '{print $1}')
+  echo "dev-lang/rust rls rustfmt wasm" >> /etc/portage/package.use/rust
+  echo "virtual/rust rustfmt" >> /etc/portage/package.use/rust
 }
 
 update_ports() {
@@ -400,17 +417,33 @@ sys-process/lsof
 sys-process/psmisc
 EOF
 
-   cat <<-EOF >>/etc/portage/make.conf
-USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
-EOF
+  update_use "gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
 
-  echo "dev-lang/rust rls rustfmt wasm" >> /etc/portage/package.use/rust
-  echo "virtual/rust rustfmt" >> /etc/portage/package.use/rust
+  echo "dev-libs/boost numpy python" >> /etc/portage/package.use/boost
+}
+
+update_use() {
+  let NEWUSE=$1
+  let OLDUSE=$(env -i bash -c 'source /etc/portage/make.conf; echo $USE')
+  let RESULTUSE="${OLDUSE} ${NEWUSE}"
+  sed -i 's/USE=.*/USE="${RESULTUSE}"/' /etc/portage/make.conf
+}
+
+select_laptop() {
+  #uptade_use if needed
+}
+
+select_wm() {
+  #uptade_use if needed
 }
 
 do_emerge() {
-  emerge --newuse --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
-  emerge --clean  --verbose
+  emerge --newuse --changed-use --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
+}
+
+do_cleanup() {
+  perl-cleaner --all
+  emerge --depclean  --verbose
 }
 
 check_is_sudo() {
@@ -421,12 +454,14 @@ check_is_sudo() {
 }
 
 usage() {
-  echo -e "install.sh\\n\\tThis script preps a gentoo laptop\\n"
+  echo -e "install.sh\\n\\tThis script sets up a gentoo system\\n"
   echo "Usage:"
   echo "  prepare                             - Prepare new maching for first boot"
-  echo "  chrooted                            - Initial chroot installation"
-  echo "  base                                - Recompiles world"
-  echo "  profile                             - Sets the desktop/systemd profile and rebuilds"
+  echo "  chrooted                            - Initial chroot installation (this is run by prepare)"
+  echo "  profile                             - Sets the desktop/systemd profile"
+  echo "  base                                - Installs base software"
+  echo "  wm                                  - Installs GUI environment"
+  echo "  laptop                              - Setup up laptop specific settings"
 }
 
 main() {
@@ -453,16 +488,22 @@ main() {
     setup_timezone
     setup_locale
     setup_network
-  elif [[ $cmd == "base" ]]; then
-    # update_ports
-    echo "TODO"
   elif [[ $cmd == "profile" ]]; then
     setup_hostname
     setup_profile
     bring_up_to_baseline
+  elif [[ $cmd == "base" ]]; then
     select_base
     do_emerge
-    echo "TODO"
+    do_cleanup
+  elif [[ $cmd == "wm" ]]; then
+    select_wm
+    do_emerge
+    do_cleanup
+  elif [[ $cmd == "laptop" ]]; then
+    select_laptop
+    do_emerge
+    do_cleanup
   else
     usage
   fi
