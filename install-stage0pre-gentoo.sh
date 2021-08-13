@@ -126,7 +126,7 @@ do_chroot() {
   SCRIPTNAME=$(basename "$0")
   PATHNAME=$(dirname "$0")
   cp "${PATHNAME}/${SCRIPTNAME}" /mnt/gentoo/install-stage0.sh
-  cd /mnt/genoo
+  cd /mnt/gentoo
   env -i HOME=/root \
     TERM=$TERM \
     DISK=$DISK \
