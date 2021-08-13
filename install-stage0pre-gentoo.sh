@@ -166,6 +166,8 @@ LINGUAS="en enUS ro"
 
 LC_MESSAGES=C
 GRUB_PLATFORMS="efi-64 coreboot"
+VIDEO_CARDS="intel"
+LLVM_TARGETS="X86 AArch64 RISCV WebAssembly"
 EOF
 
   mkdir -p /var/tmp/portage
@@ -310,13 +312,6 @@ update_ports() {
   emerge --sync --quiet
 }
 
-maybe_fix() {
-  emerge -v1 glibc
-  emerge -v1 virtual/libcrypt sys-libs/libxcrypt
-  USE=-tuetype emerge --quiet-build --autounmask-write --autounmask-continue --keep-going --oneshot harfbuzz
-  USE=-harfbuzz emerge --quiet-build --autounmask-write --autounmask-continue --oneshot freetype
-}
-
 bring_up_to_baseline() {
   echo "***"
   echo Rebuilding world with new profile and base use flags
@@ -406,8 +401,11 @@ sys-process/psmisc
 EOF
 
    cat <<-EOF >>/etc/portage/make.conf
-USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt5 policykit"
+USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
 EOF
+
+  echo "dev-lang/rust rls rustfmt wasm" >> /etc/portage/package.use/rust
+  echo "virtual/rust rustfmt" >> /etc/portage/package.use/rust
 }
 
 do_emerge() {
