@@ -77,6 +77,7 @@ create_filesystems() {
   zfs set quota=100G rpool/var/lib/docker
   zfs create -o mountpoint=/usr -o canmount=off rpool/usr
   zfs create rpool/usr/local
+  zfs create rpool/opt
 
   zfs create -o mountpoint=none -o canmount=off rpool/data
   zfs create -o mountpoint=/home rpool/data/home
