@@ -54,28 +54,29 @@ create_filesystems() {
   echo "rpool will ask for a passphrase"
   zpool create -f \
     -o ashift=12 \
-    -o cachefile= \
     -O compression=lz4 \
     -O acltype=posixacl \
-    -O atime=off \
+    -O relatime=on \
     -O xattr=sa \
     -O encryption=on \
     -O keyformat=passphrase \
+    -O canmount=off \
+    -O devices=off \
     -m none \
     -R /mnt/os \
     rpool \
     "/dev/disk/by-id/${DISK}-part4"
 
   ROOTDATE=$(date +%Y%M%d)
-  zfs create rpool/gentoo
-  zfs create -o mountpoint=/ rpool/gentoo/root-${ROOTDATE}
-  zpool set bootfs=rpool/gentoo/root-${ROOTDATE} rpool
+  zfs create -o mountpoint=none rpool/os
+  zfs create -o mountpoint=/ -o canmount=noauto rpool/os/root-${ROOTDATE}
+  zpool set bootfs=rpool/os/root-${ROOTDATE} rpool
+  zfs create -o mountpoint=/var canmount=off rpool/var
+  zfs create                                 rpool/var/log
 
-  zfs create rpool/gentoo_data
-  zfs create -o mountpoint=/var/lib/portage/distfiles rpool/gentoo_data/distfiles
-
-  zfs create rpool/data
+  zfs create -o mountpoint=none rpool/data
   zfs create -o mountpoint=/home rpool/data/home
+  zfs create -o mountpoint=/root rpool/data/home/root
   zfs create -o mountpoint=/var/lib/docker rpool/data/docker
   zfs set quota=100G rpool/data/docker
 
@@ -92,6 +93,21 @@ create_filesystems() {
 
   zpool status
   zfs list
+
+  echo "***"
+  echo "*** Exporting and reimporting datasets to validate them"
+  echo "*** You will be prompted for rpool passphrase"
+  echo "***"
+
+  zpool export -a
+  zpool import -R /mnt/os -a
+  zfs load-key rpool
+  zfs mount rpool/os/root-${ROOTDATE}
+  zfs mount -a
+
+  echo "***"
+  echo "*** ZFS imported and mounted"
+  echo "***"
 }
 
 prepare_chroot() {
