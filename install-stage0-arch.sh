@@ -151,7 +151,12 @@ do_chroot() {
     TARGET_USER=$TARGET_USER \
     HOSTNAME=$HOSTNAME \
     arch-chroot . bash -l -c "./install-stage0.sh chrooted"
-  }
+
+  systemctl enable zfs.target --root=/mnt
+  systemctl enable zfs-import-cache --root=/mnt
+  systemctl enable zfs-mount --root=/mnt
+  systemctl enable zfs-import.target --root=/mnt
+}
 
 cleanup_chroot() {
   echo "***"
@@ -236,6 +241,30 @@ EOF
   systemctl enable wpa_supplicant@wlan0.service
   systemctl enable systemd-networkd.service
 
+}
+
+add_arch_zfs() {
+  echo "***"
+  echo "*** Adding archzfs repo"
+  echo "***"
+  cat <<-EOF >>/etc/pacman.conf
+[archzfs]
+SigLevel = Required DatabaseOptional
+Server = https://zxcvfdsa.com/archzfs/$repo/$arch
+EOF
+   pacman -Syyu
+   pacman -S zfs-linux
+}
+
+setup_boot() {
+  echo "***"
+  echo "*** Setting up bootloader"
+  echo "***"
+  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard zfs filesystems resume)' /etc/mkinitcpio.conf
+  mkinitcpio -P
+  echo 'GRUB_CMDLINE_LINUX="root=ZFS=zpool/root/arch"' >> /etc/default/grub
+  grub-install --taget=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+  grub-mkconfig -o /boot/grub/grub.cfg
 }
 
 setup_user() {
@@ -522,6 +551,8 @@ main() {
     setup_locale
     setup_network
     setup_user
+    add_arch_zfs
+    setup_boot
   elif [[ $cmd == "profile" ]]; then
     setup_hostname
     setup_profile
