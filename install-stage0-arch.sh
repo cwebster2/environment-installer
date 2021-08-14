@@ -4,7 +4,6 @@
 
 set -eo pipefail
 
-export ROOTDATE=$(date +%Y%M%d)
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
@@ -67,16 +66,14 @@ create_filesystems() {
     rpool \
     "/dev/disk/by-id/${DISK}-part4"
 
-  ROOTDATE=$(date +%Y%m%d)
-  zfs create -o mountpoint=none rpool/os
+  zfs create -o mountpoint=none rpool/root
   zfs create -o mountpoint=/ -o canmount=noauto rpool/root/arch
-  zpool set bootfs=rpool/os/arch rpool
-  zfs create -o mountpoint=/var -o canmount=off rpool/var
-  zfs create                                 rpool/var/log
-  zfs create -o mountpoint=/var/lib/docker rpool/var/lib/docker
-  zfs set quota=100G rpool/var/lib/docker
-  zfs create -o mountpoint=/usr -o canmount=off rpool/usr
-  zfs create rpool/usr/local
+  zpool set bootfs=rpool/root/arch rpool
+
+  zfs create -o mountpoint=/var/log        rpool/log
+  zfs create -o mountpoint=/var/lib/docker rpool/docker
+  zfs set quota=100G rpool/var/docker
+  zfs create -o mountpoint=/usr/local rpool/usrlocal
   zfs create rpool/opt
 
   zfs create -o mountpoint=none -o canmount=off rpool/data
@@ -93,7 +90,7 @@ create_filesystems() {
     "/dev/disk/by-id/${DISK}-part2"
 
   zfs create -o canmount=off bpool/boot
-  zfs create -o mountpoint=/boot bpool/boot/arch
+  zfs create -o mountpoint=/boot -o canmount=noauto bpool/boot/arch
 
   mkswap -f "/dev/disk/by-id/${DISK}-part3"
   swapon "/dev/disk/by-id/${DISK}-part3"
@@ -111,6 +108,7 @@ create_filesystems() {
   zfs load-key rpool
   zfs mount rpool/root/arch
   zfs mount bpool/boot/arch
+
   zfs mount -a
 
   echo "***"
@@ -132,6 +130,8 @@ prepare_chroot() {
 
   cp --dereference /etc/resolv.conf etc/
 
+  genfstab -U -p /mnt/os | grep /dev/sd -A 1 | grep -v -e "^--$" > etc/fstab
+
   exit
 
   mount --rbind /dev dev
@@ -141,10 +141,6 @@ prepare_chroot() {
   mount --make-rslave proc
   mount --make-rslave sys
 
-  cat <<-EOF >>etc/fstab
-/dev/disk/by-id/${DISK}-part1               /boot/efi       vfat            noauto        1 2
-/dev/disk/by-id/${DISK}-part3               none            swap            sw            0 0
-EOF
 }
 
 do_chroot() {
@@ -160,7 +156,6 @@ do_chroot() {
     TERM=$TERM \
     DISK=$DISK \
     TARGET_USER=$TARGET_USER \
-    ROOTDATE=$ROOTDATE \
     HOSTNAME=$HOSTNAME \
     chroot . bash -l -c "./install-stage0.sh chrooted"
   }
