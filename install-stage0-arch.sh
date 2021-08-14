@@ -8,8 +8,9 @@ export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
-#export SSID=set this
-#export WPA_PASSPHRASE=set this
+# export HOSTNAME
+# export SSID=set this
+# export WPA_PASSPHRASE=set this
 
 ###################################################################################################
 ###
@@ -72,7 +73,7 @@ create_filesystems() {
 
   zfs create -o mountpoint=/var/log        rpool/log
   zfs create -o mountpoint=/var/lib/docker rpool/docker
-  zfs set quota=100G rpool/var/docker
+  zfs set quota=100G rpool/docker
   zfs create -o mountpoint=/usr/local rpool/usrlocal
   zfs create rpool/opt
 
@@ -118,29 +119,21 @@ create_filesystems() {
 
 prepare_chroot() {
   echo "***"
-  echo "Preparing for chrooting"
+  echo "*** Preparing for chrooting"
   echo "***"
   # prepare for chroot
   cd /mnt/os
   mkdir boot/efi
   mount "/dev/disk/by-id/${DISK}-part1" boot/efi
 
-  mkdir etc/zfs
+  pacstrap /mnt base linux linux-firmware
+
+  mkdir -p etc/zfs
   cp /etc/zfs/zpool.cache etc/zfs
 
   cp --dereference /etc/resolv.conf etc/
 
-  genfstab -U -p /mnt/os | grep /dev/sd -A 1 | grep -v -e "^--$" > etc/fstab
-
-  exit
-
-  mount --rbind /dev dev
-  mount --rbind /proc proc
-  mount --rbind /sys sys
-  mount --make-rslave dev
-  mount --make-rslave proc
-  mount --make-rslave sys
-
+  genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
 }
 
 do_chroot() {
@@ -157,7 +150,7 @@ do_chroot() {
     DISK=$DISK \
     TARGET_USER=$TARGET_USER \
     HOSTNAME=$HOSTNAME \
-    chroot . bash -l -c "./install-stage0.sh chrooted"
+    arch-chroot . bash -l -c "./install-stage0.sh chrooted"
   }
 
 cleanup_chroot() {
@@ -165,12 +158,10 @@ cleanup_chroot() {
   echo "Cleaning up"
   echo "***"
   cd /
-  umount -lR /mnt/os/{dev,proc,sys,boot}
   umount /mnt/os/boot/efi
   zfs umount -a
   swapoff /dev/disk/by-id/${DISK}-part3
-  zpool export rpool
-  zpool export boot
+  zpool export -a
   echo "***"
   echo "Finished with the initial setup."
   echo "***"
@@ -182,121 +173,22 @@ cleanup_chroot() {
 ###
 ###################################################################################################
 
-
-setup_portage() {
-  echo "***"
-  echo "Setting up portage"
-  echo "***"
-
-  cat <<-EOF >etc/portage/make.conf
-# See /usr/share/portage/config/make.conf.example
-USE="initramfs"
-
-MAKEOPTS="-j$(cat /proc/cpuinfo | grep "core id" | wc -l)"
-
-COMMON_FLAGS="-march=native -O2 -pipe"
-CFLAGS="\${COMMON_FLAGS}"
-CXXFLAGS="\${COMMON_FLAGS}"
-FCFLAGS="\${COMMON_FLAGS}"
-FFLAGS="\${COMMON_FLAGS}"
-
-PORTDIR="/var/db/repos/gentoo"
-PORTAGE_TMPDIR="/var/tmp/portage"
-DISTDIR="/var/lib/portage/distfiles"
-
-ACCEPT_LICENSE="*"
-EMERGE_DEFAULT_OPTS="--with-bdeps=y --keep-going=y"
-FEATURES="buildpkg"
-
-LINGUAS="en enUS ro"
-
-LC_MESSAGES=C
-GRUB_PLATFORMS="efi-64 coreboot"
-VIDEO_CARDS="${GRAPHICS}"
-LLVM_TARGETS="X86 AArch64 RISCV WebAssembly"
-EOF
-
-  mkdir -p /var/tmp/portage
-  mkdir -p etc/portage/package.use
-  echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
-  echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
-  mkdir -p etc/portage/repos.conf
-  cp /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
-
-  echo "***"
-  echo "Syncing portage tree, this could tage some time"
-  echo "***"
-  update_ports
-
-  # mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
-
-  eselect news read
-  emerge --quiet-build -uDNv @world
-}
-
-setup_kernel() {
-  echo "***"
-  echo "Setting up kernel"
-  echo "***"
-  emerge --quiet-build net-misc/dhcp sys-kernel/genkernel sys-kernel/gentoo-sources
-
-  # need to gen kernel config make menuconfig
-  eselect kernel set 1
-  genkernel --makeopts=-j4 --no-install kernel
-
-  # now we have kernel we can install zfs-kmod
-  emerge --quiet-build sys-fs/zfs sys-fs/zfs-kmod sys-boot/grub
-  hostid >/etc/hostid
-  genkernel --makeopts=-j4 --zfs --bootloader=grub2 all
-
-  if [ "$(grub-probe /boot)" != "zfs" ]; then
-    echo "grub-probe did not return zfs, aborting"
-    exit 1
-  fi
-
-  echo "***"
-  echo "Setting up booting"
-  echo "***"
-  cat <<-EOF >>etc/default/grub
-GRUB_CMDLINE_LINUX="dozfs root=ZFS"
-EOF
-
-  mount -o remount,rw /sys/firmware/efi/efivars/
-  grub-install --efi-directory=/boot/efi
-  grub-mkconfig -o /boot/grub/grub.cfg
-
-  echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
-  systemctl enable zfs.target
-  systemctl enable zfs-import-cache
-  systemctl enable zfs-mount
-  systemctl enable zfs-import.target
-}
-
-setup_user() {
-  echo "***"
-  echo "Setting up user account for ${TARGET_USER}, please set a password"
-  echo "***"
-  TARGET_USER=${TARGET_USER:-casey}
-  useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
-  passwd ${TARGET_USER}
-  setup_sudo
-}
-
 setup_timezone() {
   echo "***"
   echo "Setting Timezone"
   echo "***"
   ln -sf /usr/share/zoneinfo/America/Chicago /etc/localtime
+  hwclock --systohc
 }
 
 setup_locale() {
   echo "***"
   echo "Setting english utf8 locale"
   echo "***"
-  echo "LANG=\"en_US.utf8\"" >> /etc/locale.conf
-  echo "en_US.UTF8 UTF-8" >> /etc/locale.gen
+  sed -i '/en_US.UTF-8/ s/^#\s*//' /etc/locale.gen
+  sed -i '/ro_RO.UTF-8/ s/^#\s*//' /etc/locale.gen
   locale-gen
-  env-update && source /etc/profile
+  echo "LANG=\"en_US.UTF-8\"" >> /etc/locale.conf
 }
 
 setup_hostname() {
@@ -304,13 +196,17 @@ setup_hostname() {
   echo "Setup hostname"
   echo "***"
   # cant run this until after first boot
-  hostnamectl set-hostname ${HOSTNAME}
+  echo "${HOSTNAME}" > /etc/hostname
+  echo "127.0.1.1 ${HOSTNAME}" >> /etc/hosts
 }
 
 setup_network() {
   echo "***"
   echo "Setting up dhcp for ethernet interfaces."
   echo "***"
+
+  pacman -S iproute2 iw wpa_supplicant systemd-networkd
+
   cat <<-EOF > /etc/systemd/network/50-dhcp.network
 [Match]
 Name=en*
@@ -318,6 +214,7 @@ Name=en*
 [Network]
 DHCP=yes
 EOF
+
   cat <<-EOF > /etc/systemd/network/00-wireless-dhcp.network
 [Match]
 Name=wlan0
@@ -325,7 +222,7 @@ Name=wlan0
 [Network]
 DHCP=yes
 EOF
-  emerge --quiet-build --verbose net-wireless/iw net-wireless/wpa_supplicant
+
   cat <<-EOF > /etc/wpa_supplicant/wpa_supplicant.conf
 # Allow users in the 'wheel' group to control wpa_supplicant
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
@@ -333,6 +230,7 @@ ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
 # Make this file writable for wpa_gui / wpa_cli
 update_config=1
 EOF
+
   wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
 
   systemctl enable wpa_supplicant@wlan0.service
@@ -340,28 +238,15 @@ EOF
 
 }
 
-
-setup_profile() {
+setup_user() {
   echo "***"
-  echo Selecting desktop systemd profile
+  echo "Setting up user account for ${TARGET_USER}, please set a password"
   echo "***"
-  eselect profile set $(eselect profile list | grep "amd64/17.1/desktop/systemd" | tr -d '[]' | awk '{print $1}')
-  echo "dev-lang/rust rls rustfmt wasm" >> /etc/portage/package.use/rust
-  echo "virtual/rust rustfmt" >> /etc/portage/package.use/rust
-}
-
-update_ports() {
-  echo "***"
-  echo Downloading portage tree
-  echo "***"
-  emerge --sync --quiet
-}
-
-bring_up_to_baseline() {
-  echo "***"
-  echo Rebuilding world with new profile and base use flags
-  echo "***"
-  emerge --newuse --update --deep --quiet-build --autounmask-write --autounmask-continue --reinstall=changed-use @world
+  pacman -S zsh sudo
+  TARGET_USER=${TARGET_USER:-casey}
+  useradd -m -s /bin/zsh -G wheel ${TARGET_USER}
+  passwd ${TARGET_USER}
+  setup_sudo
 }
 
 setup_sudo() {
@@ -633,12 +518,10 @@ main() {
     echo "*** ALERT: reboot and run insall-stage0.sh base"
     echo "***"
   elif [[ $cmd == "chrooted" ]]; then
-    setup_portage
-    setup_kernel
-    setup_user
     setup_timezone
     setup_locale
     setup_network
+    setup_user
   elif [[ $cmd == "profile" ]]; then
     setup_hostname
     setup_profile
