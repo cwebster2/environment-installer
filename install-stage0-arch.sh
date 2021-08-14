@@ -126,7 +126,7 @@ prepare_chroot() {
   mkdir boot/efi
   mount "/dev/disk/by-id/${DISK}-part1" boot/efi
 
-  pacstrap /mnt base linux linux-firmware
+  pacstrap /mnt/os base linux linux-firmware
 
   mkdir -p etc/zfs
   cp /etc/zfs/zpool.cache etc/zfs
@@ -150,12 +150,16 @@ do_chroot() {
     DISK=$DISK \
     TARGET_USER=$TARGET_USER \
     HOSTNAME=$HOSTNAME \
-    arch-chroot . bash -l -c "./install-stage0.sh chrooted"
+    SSID=$SSID \
+    WPA_PASSPHRASE=$WPA_PASSPHRASE \
+    arch-chroot /mnt/os bash -l -c "./install-stage0.sh chrooted"
 
-  systemctl enable zfs.target --root=/mnt
-  systemctl enable zfs-import-cache --root=/mnt
-  systemctl enable zfs-mount --root=/mnt
-  systemctl enable zfs-import.target --root=/mnt
+  systemctl enable zfs.target --root=/mnt/os
+  systemctl enable zfs-import-cache --root=/mnt/os
+  systemctl enable zfs-mount --root=/mnt/os
+  systemctl enable zfs-import.target --root=/mnt/os
+  systemctl enable wpa_supplicant@wlan0.service --root=/mnt/os
+  systemctl enable systemd-networkd.service --root=/mnt/os
 }
 
 cleanup_chroot() {
@@ -210,7 +214,7 @@ setup_network() {
   echo "Setting up dhcp for ethernet interfaces."
   echo "***"
 
-  pacman -S iproute2 iw wpa_supplicant systemd-networkd
+  pacman --noconfirm -S iproute2 iw wpa_supplicant systemd-networkd
 
   cat <<-EOF > /etc/systemd/network/50-dhcp.network
 [Match]
@@ -238,8 +242,6 @@ EOF
 
   wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
 
-  systemctl enable wpa_supplicant@wlan0.service
-  systemctl enable systemd-networkd.service
 
 }
 
@@ -247,13 +249,19 @@ add_arch_zfs() {
   echo "***"
   echo "*** Adding archzfs repo"
   echo "***"
+
+  pacman --noconfirm -S archlinux-keyring
+  pacman-key init
+  pacman-key --recv-keys DDF7DB817396A49B2A2723F7403BD972F75D9D76
+  pacman-key --lsign-key DDF7DB817396A49B2A2723F7403BD972F75D9D76
+
   cat <<-EOF >>/etc/pacman.conf
 [archzfs]
 SigLevel = Required DatabaseOptional
-Server = https://zxcvfdsa.com/archzfs/$repo/$arch
+Server = https://zxcvfdsa.com/archzfs/\$repo/\$arch
 EOF
    pacman -Syyu
-   pacman -S zfs-linux
+   pacman --noconfirm -S zfs-linux
 }
 
 setup_boot() {
@@ -271,7 +279,7 @@ setup_user() {
   echo "***"
   echo "Setting up user account for ${TARGET_USER}, please set a password"
   echo "***"
-  pacman -S zsh sudo
+  pacman --nocofirm -S zsh sudo
   TARGET_USER=${TARGET_USER:-casey}
   useradd -m -s /bin/zsh -G wheel ${TARGET_USER}
   passwd ${TARGET_USER}
@@ -282,7 +290,6 @@ setup_sudo() {
   echo "***"
   echo "Setting up sudo for ${TARGET_USER}"
   echo "***"
-  emerge --quiet-build app-admin/sudo
   gpasswd -a "$TARGET_USER" systemd-journal
   gpasswd -a "$TARGET_USER" systemd-network
 
