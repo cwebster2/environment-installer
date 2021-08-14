@@ -67,26 +67,32 @@ create_filesystems() {
     rpool \
     "/dev/disk/by-id/${DISK}-part4"
 
-  ROOTDATE=$(date +%Y%M%d)
+  ROOTDATE=$(date +%Y%m%d)
   zfs create -o mountpoint=none rpool/os
-  zfs create -o mountpoint=/ -o canmount=noauto rpool/os/root-${ROOTDATE}
-  zpool set bootfs=rpool/os/root-${ROOTDATE} rpool
-  zfs create -o mountpoint=/var canmount=off rpool/var
+  zfs create -o mountpoint=/ -o canmount=noauto rpool/root/arch
+  zpool set bootfs=rpool/os/arch rpool
+  zfs create -o mountpoint=/var -o canmount=off rpool/var
   zfs create                                 rpool/var/log
+  zfs create -o mountpoint=/var/lib/docker rpool/var/lib/docker
+  zfs set quota=100G rpool/var/lib/docker
+  zfs create -o mountpoint=/usr -o canmount=off rpool/usr
+  zfs create rpool/usr/local
 
-  zfs create -o mountpoint=none rpool/data
+  zfs create -o mountpoint=none -o canmount=off rpool/data
   zfs create -o mountpoint=/home rpool/data/home
   zfs create -o mountpoint=/root rpool/data/home/root
-  zfs create -o mountpoint=/var/lib/docker rpool/data/docker
-  zfs set quota=100G rpool/data/docker
+  chmod 700 /mnt/os/root
 
   zpool create -f -d \
     -o ashift=12 \
     -o cachefile= \
-    -m /boot \
+    -m none \
     -R /mnt/os \
-    boot \
+    bpool \
     "/dev/disk/by-id/${DISK}-part2"
+
+  zfs create -o canmount=off bpool/boot
+  zfs create -o mountpoint=/boot bpool/boot/arch
 
   mkswap -f "/dev/disk/by-id/${DISK}-part3"
   swapon "/dev/disk/by-id/${DISK}-part3"
@@ -102,7 +108,8 @@ create_filesystems() {
   zpool export -a
   zpool import -R /mnt/os -a
   zfs load-key rpool
-  zfs mount rpool/os/root-${ROOTDATE}
+  zfs mount rpool/root/arch
+  zfs mount bpool/boot/arch
   zfs mount -a
 
   echo "***"
@@ -119,16 +126,12 @@ prepare_chroot() {
   mkdir boot/efi
   mount "/dev/disk/by-id/${DISK}-part1" boot/efi
 
-  # get amd64+systemd stage3 archive
-  echo ${STAGE3}
-  curl -L -o stage3.tar.xz https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/${STAGE3}
-  tar xpf stage3.tar.xz
-  rm stage3.tar.xz
-
   mkdir etc/zfs
   cp /etc/zfs/zpool.cache etc/zfs
 
   cp --dereference /etc/resolv.conf etc/
+
+  exit
 
   mount --rbind /dev dev
   mount --rbind /proc proc
