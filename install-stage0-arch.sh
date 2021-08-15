@@ -2,6 +2,7 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-arch.sh
 
+# TODO tmpfs on ~/Downloads azuredatastudio
 set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
@@ -487,7 +488,7 @@ install_gui() {
     plymouth-zfs \
     greetd
 
-  sed -i 's/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
+  sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   mkinitcpio -P
 
   echo "***"
@@ -508,6 +509,7 @@ enable_multilib() {
 [multilib]
 Include = /etc/pacman.d/mirrorlist
 EOF
+  pacman -Syyu
 }
 
 install_games() {
@@ -527,6 +529,11 @@ do_cleanup() {
   pacman --noconfirm -Sc
 }
 
+get_dotfiles_installer() {
+  curl -o /home/${TARGET_USER}/install.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
+  chown ${TARGET_USER} /home/${TARGET_USER}/install.sh
+}
+
 check_is_sudo() {
   if [ "$EUID" -ne 0 ]; then
     echo "Please run as root."
@@ -543,6 +550,7 @@ usage() {
   echo "  wm                                  - Installs GUI environment"
   echo "  laptop                              - Setup up laptop specific settings"
   echo "  games                               - Setup games"
+  echo "  dotfiles                            - Get dotfiles install.sh"
 }
 
 main() {
@@ -602,6 +610,8 @@ main() {
     echo "***"
     echo "*** Done"
     echo "***"
+  elif [[ $cmd == "dotfiles" ]]; then
+    get_dotfiles_installer
   else
     usage
   fi
