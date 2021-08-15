@@ -91,7 +91,7 @@ create_filesystems() {
     "/dev/disk/by-id/${DISK}-part2"
 
   zfs create -o canmount=off bpool/boot
-  zfs create -o mountpoint=/boot -o canmount=noauto bpool/boot/arch
+  zfs create -o mountpoint=/boot bpool/boot/arch
 
   mkswap -f "/dev/disk/by-id/${DISK}-part3"
   swapon "/dev/disk/by-id/${DISK}-part3"
@@ -105,11 +105,11 @@ create_filesystems() {
   echo "***"
 
   zpool export -a
-  zpool import -R /mnt/os -a
+  zpool import -R /mnt/os rpool
   zfs load-key rpool
   zfs mount rpool/root/arch
-  zfs mount bpool/boot/arch
-
+  zfs mount -a
+  zpool import -R /mnt/os bpool
   zfs mount -a
 
   echo "***"
@@ -274,6 +274,7 @@ setup_boot() {
   rm -f /etc/hostid
   zgenhostid $(hostid)
   zpool set cachefile=/etc/zfs/zpool.cache rpool
+  zpool set cachefile=/etc/zfs/zpool.cache bpool
   mkinitcpio -P
   echo 'GRUB_CMDLINE_LINUX="root=ZFS=rpool/root/arch"' >> /etc/default/grub
   ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
@@ -306,90 +307,69 @@ setup_sudo() {
   } > "/etc/sudoers.d/${TARGET_USER}"
 }
 
-select_base() {
-  mkdir -p /etc/portage/sets/base
-  cat <<-EOF >>/etc/portage/sets/base
-app-admin/sudo
-app-arch/bzip2
-app-arch/gzip
-app-arch/tar
-app-arch/unar
-app-arch/unzip
-app-arch/xz-utils
-app-arch/zip
-app-crypt/gnupg
-app-crypt/pinentry
-app-editors/emacs
-app-emulation/docker
-app-emulation/docker-cli
-app-emulation/docker-compose
-app-emulation/docker-credential-helpers
-app-misc/ca-certificates
-app-misc/jq
-app-misc/ranger
-app-shells/zsh
-dev-tcltk/expect
-dev-util/ctags
-dev-util/pkgconf
-dev-util/strace
-dev-util/github-cli
-dev-vcs/git
-exuberant-ctags
-net-analyzer/netcat
-net-analyzer/prettyping
-net-analyzer/tcptraceroute
-net-analyzer/traceroute
-net-firewall/nftables
-net-firewall/nftables
-net-libs/libssh2
-net-misc/bridge-utils
-net-misc/curl
-net-misc/openssh
-net-misc/rsync
-net-misc/wget
-net-print/brlaser
-net-wireless/bluez
-net-wireless/iw
-net-wireless/iwd
-sys-apps/bolt
-sys-apps/coreutils
-sys-apps/file
-sys-apps/findutils
-sys-apps/fwupd
-sys-apps/grep
-sys-apps/iproute2
-sys-apps/less
-sys-apps/lm-sensors
-sys-apps/lsb-release
-sys-apps/lshw
-sys-apps/net-tools
-sys-apps/the_silver_searcher
-sys-devel/automake
-sys-devel/bc
-sys-devel/gcc
-sys-devel/make
-sys-process/htop
-sys-process/lsof
-sys-process/psmisc
-EOF
-
-  update_use "gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
-
-  echo "dev-libs/boost numpy python" >> /etc/portage/package.use/boost
-  mkdir -p /etc/portage/package.accept_keywords
-  echo "dev-util/github-cli ~amd64" >> /etc/portage/package.accept_keywords/gh
-}
-
-update_use() {
-  NEWUSE=$1
-  OLDUSE=$(env -i bash -c 'source /etc/portage/make.conf; echo $USE')
-  RESULTUSE="${OLDUSE} ${NEWUSE}"
-  sed -i "s/USE=.*/USE=\"${RESULTUSE}\"/" /etc/portage/make.conf
-}
-
-set_video_cards() {
-  NEWVIDEO=$1
-  sed -i "s/VIDEO_CARDS=.*/VIDEO_CARDS=\"${NEWVIDEO}\"/" /etc/portage/make.conf
+install_base() {
+  pacman --noconfirm -S \
+bzip2 \
+gzip \
+tar \
+unar \
+unzip \
+xz-utils \
+zip \
+gnupg \
+pinentry \
+emacs \
+docker \
+docker-cli \
+docker-compose \
+docker-credential-helpers \
+ca-certificates \
+jq \
+ranger \
+zsh \
+expect \
+ctags \
+pkgconf \
+strace \
+github-cli \
+git \
+exuberant-ctags \
+netcat \
+prettyping \
+tcptraceroute \
+traceroute \
+nftables \
+nftables \
+libssh2 \
+bridge-utils \
+curl \
+openssh \
+rsync \
+wget \
+brlaser \
+bluez \
+iw \
+iwd \
+bolt \
+coreutils \
+file \
+findutils \
+fwupd \
+grep \
+iproute2 \
+less \
+lm-sensors \
+lsb-release \
+lshw \
+net-tools \
+the_silver_searcher \
+automake \
+bc \
+gcc \
+make \
+htop \
+lsof \
+psmisc
 }
 
 select_laptop() {
@@ -516,8 +496,7 @@ do_emerge() {
 }
 
 do_cleanup() {
-  perl-cleaner --all
-  emerge --depclean  --verbose
+  echo "pacman cleanup?"
 }
 
 check_is_sudo() {
@@ -532,7 +511,6 @@ usage() {
   echo "Usage:"
   echo "  prepare                             - Prepare new maching for first boot"
   echo "  chrooted                            - Initial chroot installation (this is run by prepare)"
-  echo "  profile                             - Sets the desktop/systemd profile"
   echo "  base                                - Installs base software"
   echo "  wm                                  - Installs GUI environment"
   echo "  laptop                              - Setup up laptop specific settings"
@@ -561,17 +539,13 @@ main() {
   elif [[ $cmd == "chrooted" ]]; then
     setup_timezone
     setup_locale
+    setup_hostname
     setup_network
     setup_user
     add_arch_zfs
     setup_boot
-  elif [[ $cmd == "profile" ]]; then
-    setup_hostname
-    setup_profile
-    bring_up_to_baseline
   elif [[ $cmd == "base" ]]; then
-    select_base
-    do_emerge base
+    install_base
     do_cleanup
   elif [[ $cmd == "wm" ]]; then
     select_wm
