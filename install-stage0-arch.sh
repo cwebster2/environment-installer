@@ -140,7 +140,6 @@ prepare_chroot() {
     iproute2 \
     iw \
     wpa_supplicant \
-    systemd-networkd \
     grub \
     efibootmgr \
     zsh \
@@ -280,7 +279,7 @@ setup_boot() {
   echo "***"
   echo "*** Setting up bootloader"
   echo "***"
-  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard zfs filesystems resume)/' /etc/mkinitcpio.conf
+  sed -i 's/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard zfs filesystems resume)/' /etc/mkinitcpio.conf
   rm -f /etc/hostid
   zgenhostid $(hostid)
   zpool set cachefile=/etc/zfs/zpool.cache rpool
