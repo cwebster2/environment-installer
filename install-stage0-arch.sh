@@ -133,7 +133,8 @@ prepare_chroot() {
 
   cp --dereference /etc/resolv.conf etc/
 
-  genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
+  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
+  # genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
 }
 
 do_chroot() {
@@ -268,11 +269,15 @@ setup_boot() {
   echo "***"
   echo "*** Setting up bootloader"
   echo "***"
-  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard zfs filesystems resume)' /etc/mkinitcpio.conf
+  pacman --noconfirm -S grub efibootmgr
+  sed -i '/^HOOKS=.*$/HOOKS=base udev autodetect modconf block keyboard zfs filesystems resume/' /etc/mkinitcpio.conf
+  rm -f /etc/hostid
+  zgenhostid $(hostid)
+  zpool set cachefile=/etc/zfs/zpool.cache rpool
   mkinitcpio -P
-  echo 'GRUB_CMDLINE_LINUX="root=ZFS=zpool/root/arch"' >> /etc/default/grub
-  grub-install --taget=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-  grub-mkconfig -o /boot/grub/grub.cfg
+  echo 'GRUB_CMDLINE_LINUX="root=ZFS=rpool/root/arch"' >> /etc/default/grub
+  ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+  ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
 }
 
 setup_user() {
