@@ -118,6 +118,8 @@ create_filesystems() {
   zpool import -R /mnt/os bpool
   zfs mount -a
 
+  mount | grep /mnt/os
+  
   echo "***"
   echo "*** ZFS pools imported and datasets mounted"
   echo "***"
@@ -150,7 +152,7 @@ prepare_chroot() {
 
   cp --dereference /etc/resolv.conf etc/
 
-  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
+  # genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
   # genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
 }
 
@@ -374,7 +376,7 @@ install_base() {
     pinentry \
     pkgconf \
     prettyping \
-    psmisc
+    psmisc \
     ranger \
     rsync \
     strace \
