@@ -308,21 +308,23 @@ setup_sudo() {
 }
 
 install_base() {
+# brlaser \
+# tcptraceroute \
+# docker-credential-helpers \
+# exuberant-ctags \
   pacman --noconfirm -S \
 bzip2 \
 gzip \
 tar \
-unar \
+unrar \
 unzip \
-xz-utils \
+xz \
 zip \
 gnupg \
 pinentry \
 emacs \
 docker \
-docker-cli \
 docker-compose \
-docker-credential-helpers \
 ca-certificates \
 jq \
 ranger \
@@ -333,10 +335,8 @@ pkgconf \
 strace \
 github-cli \
 git \
-exuberant-ctags \
-netcat \
+gnu-netcat \
 prettyping \
-tcptraceroute \
 traceroute \
 nftables \
 nftables \
@@ -346,7 +346,6 @@ curl \
 openssh \
 rsync \
 wget \
-brlaser \
 bluez \
 iw \
 iwd \
@@ -358,7 +357,7 @@ fwupd \
 grep \
 iproute2 \
 less \
-lm-sensors \
+lm_sensors \
 lsb-release \
 lshw \
 net-tools \
