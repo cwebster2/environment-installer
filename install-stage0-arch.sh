@@ -135,6 +135,8 @@ prepare_chroot() {
   pacstrap /mnt/os \
     base \
     linux \
+    linux-headers \
+    dkms \
     linux-firmware \
     archlinux-keyring \
     iproute2 \
