@@ -152,7 +152,7 @@ prepare_chroot() {
 
   cp --dereference /etc/resolv.conf etc/
 
-  # genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
+  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
   # genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
 }
 
@@ -261,12 +261,19 @@ EOF
   wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
 }
 
+setup_pacman_keys() {
+  echo "***"
+  echo "*** Setting up pacman-key"
+  echo "***"
+
+  pacman-key --init
+  pacman-key --refresh-keys
+}
+
 add_arch_zfs() {
   echo "***"
   echo "*** Adding archzfs repo"
   echo "***"
-
-  pacman-key init
   pacman-key --recv-keys DDF7DB817396A49B2A2723F7403BD972F75D9D76
   pacman-key --lsign-key DDF7DB817396A49B2A2723F7403BD972F75D9D76
 
@@ -396,6 +403,7 @@ install_base() {
   (
     pushd /usr/src 2>/dev/null
     git clone https://aur.archlinux.org/yay.git
+    chown -R ${TARGET_USER} yay
     cd yay
     su - ${TARGET_USER} -c 'cd /usr/src/yay; makepkg --noconfirm -sri'
     popd
@@ -479,7 +487,7 @@ install_gui() {
     plymouth-zfs \
     greetd
 
-  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
+  sed -i 's/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   mkinitcpio -P
 
   echo "***"
@@ -490,6 +498,16 @@ install_gui() {
 install_from_aur() {
   # yay doesn't like being root
   su - ${TARGET_USER} -c "yay --noconfirm -S $*"
+}
+
+enable_multilib() {
+  echo "***"
+  echo "*** Enabling multilib repository"
+  echo "***"
+  cat <<-EOF >> /etc/pacman.conf
+[multilib]
+Include = /etc/pacman.d/mirrorlist
+EOF
 }
 
 install_games() {
@@ -506,7 +524,7 @@ do_cleanup() {
   echo "***"
   echo "*** Cleaning up"
   echo "***"
-  pacman -Sc
+  pacman --noconfirm -Sc
 }
 
 check_is_sudo() {
@@ -552,6 +570,7 @@ main() {
     setup_hostname
     setup_network
     setup_user
+    setup_pacman_keys
     add_arch_zfs
     setup_boot
   elif [[ $cmd == "base" ]]; then
@@ -563,7 +582,7 @@ main() {
     echo "***"
   elif [[ $cmd == "wm" ]]; then
     check_is_sudo
-    install_wm
+    install_gui
     do_cleanup
     echo "***"
     echo "*** Done"
@@ -577,6 +596,7 @@ main() {
     echo "***"
   elif [[ $cmd == "games" ]]; then
     check_is_sudo
+    enable_multilib
     install_games
     do_cleanup
     echo "***"
