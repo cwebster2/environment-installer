@@ -8,7 +8,7 @@ export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
-# export HOSTNAME
+export HOSTNAME=${HOSTNAME:-${TARGET_USER}book}
 # export SSID=set this
 # export WPA_PASSPHRASE=set this
 
@@ -54,6 +54,7 @@ create_filesystems() {
   echo "rpool will ask for a passphrase"
   zpool create -f \
     -o ashift=12 \
+    -o cachefile= \
     -O compression=lz4 \
     -O acltype=posixacl \
     -O relatime=on \
@@ -100,11 +101,16 @@ create_filesystems() {
   zfs list
 
   echo "***"
-  echo "*** Exporting and reimporting datasets to validate them"
-  echo "*** You will be prompted for rpool passphrase"
+  echo "*** Exporting rpool and bpool"
   echo "***"
 
   zpool export -a
+
+  echo "***"
+  echo "*** Reimporting pools to validate them"
+  echo "*** You will be prompted for rpool passphrase"
+  echo "***"
+
   zpool import -R /mnt/os rpool
   zfs load-key rpool
   zfs mount rpool/root/arch
@@ -113,7 +119,7 @@ create_filesystems() {
   zfs mount -a
 
   echo "***"
-  echo "*** ZFS imported and mounted"
+  echo "*** ZFS pools imported and datasets mounted"
   echo "***"
 }
 
@@ -126,10 +132,20 @@ prepare_chroot() {
   mkdir boot/efi
   mount "/dev/disk/by-id/${DISK}-part1" boot/efi
 
-  pacstrap /mnt/os base linux linux-firmware
-
-  mkdir -p etc/zfs
-  cp /etc/zfs/zpool.cache etc/zfs
+  pacstrap /mnt/os \
+    base \
+    linux \
+    linux-firmware \
+    archlinux-keyring \
+    iproute2 \
+    iw \
+    wpa_supplicant \
+    systemd-networkd \
+    grub \
+    efibootmgr \
+    zsh \
+    kitty-terminfo \
+    sudo
 
   cp --dereference /etc/resolv.conf etc/
 
@@ -215,8 +231,6 @@ setup_network() {
   echo "Setting up dhcp for ethernet interfaces."
   echo "***"
 
-  pacman --noconfirm -S iproute2 iw wpa_supplicant systemd-networkd
-
   cat <<-EOF > /etc/systemd/network/50-dhcp.network
 [Match]
 Name=en*
@@ -242,8 +256,6 @@ update_config=1
 EOF
 
   wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
-
-
 }
 
 add_arch_zfs() {
@@ -251,7 +263,6 @@ add_arch_zfs() {
   echo "*** Adding archzfs repo"
   echo "***"
 
-  pacman --noconfirm -S archlinux-keyring
   pacman-key init
   pacman-key --recv-keys DDF7DB817396A49B2A2723F7403BD972F75D9D76
   pacman-key --lsign-key DDF7DB817396A49B2A2723F7403BD972F75D9D76
@@ -262,15 +273,14 @@ SigLevel = Required DatabaseOptional
 Server = https://zxcvfdsa.com/archzfs/\$repo/\$arch
 EOF
    pacman -Syyu
-   pacman --noconfirm -S zfs-linux
+   pacman --noconfirm -S zfs-dkms
 }
 
 setup_boot() {
   echo "***"
   echo "*** Setting up bootloader"
   echo "***"
-  pacman --noconfirm -S grub efibootmgr
-  sed -i '/^HOOKS=.*$/HOOKS=base udev autodetect modconf block keyboard zfs filesystems resume/' /etc/mkinitcpio.conf
+  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard zfs filesystems resume)/' /etc/mkinitcpio.conf
   rm -f /etc/hostid
   zgenhostid $(hostid)
   zpool set cachefile=/etc/zfs/zpool.cache rpool
@@ -285,10 +295,12 @@ setup_user() {
   echo "***"
   echo "Setting up user account for ${TARGET_USER}, please set a password"
   echo "***"
-  pacman --nocofirm -S zsh sudo
   TARGET_USER=${TARGET_USER:-casey}
   useradd -m -s /bin/zsh -G wheel ${TARGET_USER}
   passwd ${TARGET_USER}
+  # this is so the zsh setup doesn't bother us until dotfiles are installed
+  touch /home/${TARGET_USER}/.zshrc
+  chown ${TARGET_USER} /home/${TARGET_USER}/.zshrc
   setup_sudo
 }
 
@@ -308,82 +320,103 @@ setup_sudo() {
 }
 
 install_base() {
+  echo "***"
+  echo "*** Starting Base Install Target"
+  echo "***"
 # brlaser \
 # tcptraceroute \
 # docker-credential-helpers \
-# exuberant-ctags \
   pacman --noconfirm -S \
-bzip2 \
-gzip \
-tar \
-unrar \
-unzip \
-xz \
-zip \
-gnupg \
-pinentry \
-emacs \
-docker \
-docker-compose \
-ca-certificates \
-jq \
-ranger \
-zsh \
-expect \
-ctags \
-pkgconf \
-strace \
-github-cli \
-git \
-gnu-netcat \
-prettyping \
-traceroute \
-nftables \
-nftables \
-libssh2 \
-bridge-utils \
-curl \
-openssh \
-rsync \
-wget \
-bluez \
-iw \
-iwd \
-bolt \
-coreutils \
-file \
-findutils \
-fwupd \
-grep \
-iproute2 \
-less \
-lm_sensors \
-lsb-release \
-lshw \
-net-tools \
-the_silver_searcher \
-automake \
-bc \
-gcc \
-make \
-htop \
-lsof \
-psmisc
+    automake \
+    bc \
+    bluez \
+    bluez-utils \
+    bolt \
+    bridge-utils \
+    bzip2 \
+    ca-certificates \
+    coreutils \
+    ctags \
+    curl \
+    base-devel \
+    docker \
+    docker-compose \
+    expect \
+    file \
+    findutils \
+    fwupd \
+    gcc \
+    git \
+    github-cli \
+    gnu-netcat \
+    gnupg \
+    grep \
+    gzip \
+    htop \
+    iproute2 \
+    iw \
+    iwd \
+    jq \
+    less \
+    libssh2 \
+    lm_sensors \
+    lsb-release \
+    lshw \
+    lsof \
+    make \
+    man \
+    neovim \
+    net-tools \
+    nftables \
+    nftables \
+    openssh \
+    pinentry \
+    pkgconf \
+    prettyping \
+    psmisc
+    ranger \
+    rsync \
+    strace \
+    tar \
+    the_silver_searcher \
+    traceroute \
+    unrar \
+    unzip \
+    wget \
+    xz \
+    zip \
+    zsh
+
+  echo "***"
+  echo "*** Setting up yay for AUR packages"
+  echo "***"
+  (
+    pushd /usr/src 2>/dev/null
+    git clone https://aur.archlinux.org/yay.git
+    cd yay
+    su - ${TARGET_USER} -c 'cd /usr/src/yay; makepkg --noconfirm -sri'
+    popd
+  )
+
+  echo "***"
+  echo "*** Base install target finiished"
+  echo "***"
 }
 
-select_laptop() {
-  #uptade_use if needed
-  cat <<-EOF >>/etc/portage/sets/laptop
-sys-power/thermald
-app-laptop/laptop-mode-tools
-EOF
-  echo "app-laptop/laptop-mode-tools acpi -apm bluetooth" >> /etc/portage/package.use/laptop
-}
+install_laptop() {
 
-configure_laptop() {
+  pacman --noconfirm -S \
+    thermald \
+    acpid \
+    ethtool
+
+  install_from_aur laptop-mode-tools
+
   # https://wiki.gentoo.org/wiki/Power_management/Guide
   echo "ENABLE_LAPTOP_MODE_ON_BATTERY=1" >> /etc/laptop-mode/conf.d/cpufreq.conf
+
   systemctl enable thermald
+  systemctl enable acpid
   systemctl enable laptop-mode.service
 
   cat <<-EOF >>/etc/udev/rules.d/99-lowbat.rules
@@ -392,31 +425,19 @@ SUBSYSTEM=="power_supply", ATTR{status}=="Discharging", ATTR{capacity}=="[0-5]",
 EOF
 }
 
-select_wm() {
-  #uptade_use if needed
+install_gui() {
+  echo "***"
+  echo "*** Beginning install for GUI Target"
+  echo "***"
   case $GRAPHICS in
     "intel")
-      set_video_cards "intel i965 iris"
-  cat <<-EOF >>/etc/portage/sets/gui
-x11-drivers/xf86-video-intel
-x11-libs/libva-intel-driver
-x11-libs/libva-intel-media-driver
-EOF
-  echo "x11-drivers/xf86-video-intel dri sna tools udev uxa xvmc" >> /etc/portage/package.use/video
+      pacman --noconfirm -S vulkan-intel libva-intel-driver xf86-video-intel
       ;;
     "geforce")
-      set_video_cards "nvidia"
-  cat <<-EOF >>/etc/portage/sets/gui
-x11-drivers/nvidia-drivers
-EOF
+      pacman --noconfirm -S nvidia-drivers
       ;;
     "optimus")
-      set_video_cards "nvidia intel"
-  cat <<-EOF >>/etc/portage/sets/gui
-x11-drivers/nvidia-drivers
-x11-misc/bumblebee
-x11-misc/primus
-EOF
+      pacman --noconfirm -S nvidia-drivers bbswitch-dkms
       ;;
     *)
       echo "You need to specify whether it's intel, geforce or optimus"
@@ -424,78 +445,65 @@ EOF
       ;;
   esac
 
-  cat <<-EOF >>/etc/portage/sets/gui
-app-crypt/keybase
-app-editors/vscode
-app-misc/neofetch
-app-select/eselect-repository
-dev-libs/weston
-games-emulation/higan
-gnome-extra/gucharmap
-gui-apps/swaybg
-gui-apps/swayidle
-gui-apps/swaylock
-gui-apps/waybar
-gui-wm/sway
-kde-misc/kdeconnect
-media-gfx/flameshot
-media-gfx/inkscape
-media-sound/alsa-utils
-media-sound/pavucontrol
-media-sound/playerctl
-media-sound/pulseaudio
-media-sound/pulseaudio-modules-bt
-media-sound/spotify
-media-video/vlc
-net-im/slack
-net-im/teams
-net-misc/remmina
-www-client/google-chrome
-www-client/qutebrowser
-www-client/firefox
-x11-terms/kitty
-x11-terms/kitty-terminfo
-EOF
+  pacman --noconfirm -S \
+    alsa-utils \
+    discord \
+    firefox \
+    emacs \
+    flameshot \
+    gucharmap \
+    inkscape \
+    kdeconnect \
+    keybase \
+    kitty \
+    neofetch \
+    pavucontrol \
+    playerctl \
+    pulseaudio \
+    qutebrowser \
+    remmina \
+    sway \
+    swaybg \
+    swayidle \
+    swaylock \
+    vlc \
+    vscode
 
-# x11-base/xwayland
-# games-util/lutris
 
-  echo "dev-libs/weston drm wayland-compositor xwayland" >> /etc/portage/package.use/wayland
-  echo "gui-apps/waybar network popups tray wifi" >> /etc/portage/package.use/wayland
-  update_use "vulkan gles2"
+  install_from_aur \
+    google-chrome \
+    spotify \
+    plymouth-zfs \
+    greetd
 
-  cat <<-EOF >>/etc/portage/package.accept_keywords/gui
-x11-terms/kitty ~amd64
-x11-terms/kitty-terminfo ~amd64
-app-crypt/keybase ~amd64
-app-editors/vscode ~amd64
-games-emulation/higan ~amd64
-gui-apps/waybar ~amd64
-media-sound/pulseaudio-modules-bt  ~amd64
-net-im/slack ~amd64
-net-im/teams ~amd64
-www-client/qutebrowser ~amd64
-x11-base/xwayland ~amd64
-dev-python/adblock ~amd64
-dev-util/maturin ~amd64
-dev-libs/date ~amd64
-EOF
+  sed -i '/^HOOKS=.*$/HOOKS=(base udev autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
+  mkinitcpio -P
+
+  echo "***"
+  echo "*** GUI Install Target Finished"
+  echo "***"
 }
 
-configure_wm() {
-  eselect repository enable steam-overlay
+install_from_aur() {
+  # yay doesn't like being root
+  su - ${TARGET_USER} -c "yay --noconfirm -S $*"
 }
 
-install_steam() {
-  emerge --verbose games-util/steam-launcher
-}
-
-do_emerge() {
-  emerge --newuse --changed-use --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @$1
+install_games() {
+  echo "***"
+  echo "*** Installing games target"
+  echo "***"
+  pacman --noconfirm -S \
+    steam \
+    higan
+  install_from_aur lutris-git
 }
 
 do_cleanup() {
-  echo "pacman cleanup?"
+  echo "***"
+  echo "*** Cleaning up"
+  echo "***"
+  pacman -Sc
 }
 
 check_is_sudo() {
@@ -513,7 +521,7 @@ usage() {
   echo "  base                                - Installs base software"
   echo "  wm                                  - Installs GUI environment"
   echo "  laptop                              - Setup up laptop specific settings"
-  echo "  steam                               - Setup steam"
+  echo "  games                               - Setup games"
 }
 
 main() {
@@ -544,21 +552,33 @@ main() {
     add_arch_zfs
     setup_boot
   elif [[ $cmd == "base" ]]; then
+    check_is_sudo
     install_base
     do_cleanup
+    echo "***"
+    echo "*** Done"
+    echo "***"
   elif [[ $cmd == "wm" ]]; then
-    select_wm
-    do_emerge gui
-    configure_wm
+    check_is_sudo
+    install_wm
     do_cleanup
+    echo "***"
+    echo "*** Done"
+    echo "***"
   elif [[ $cmd == "laptop" ]]; then
-    select_laptop
-    do_emerge laptop
-    configure_laptop
+    check_is_sudo
+    install_laptop
     do_cleanup
-  elif [[ $cmd == "steam" ]]; then
-    install_steam
+    echo "***"
+    echo "*** Done"
+    echo "***"
+  elif [[ $cmd == "games" ]]; then
+    check_is_sudo
+    install_games
     do_cleanup
+    echo "***"
+    echo "*** Done"
+    echo "***"
   else
     usage
   fi
