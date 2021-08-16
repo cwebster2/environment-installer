@@ -10,9 +10,12 @@ ARG DISTRO=debian
 ENV TARGET_USER=${TARGET_USER:-casey} \
     DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 
-RUN emerge --sync --quiet
-RUN useradd $TARGET_USER
+USER root
+# RUN useradd $TARGET_USER
 WORKDIR /home/$TARGET_USER
+COPY install-stage0pre-${DISTRO}.sh install-pre.sh
+RUN ./install-pre.sh updatebase
+RUN ./install-pre.sh setprofile
 COPY install-stage0-${DISTRO}.sh install-stage0.sh
 RUN ./install-stage0.sh base
 

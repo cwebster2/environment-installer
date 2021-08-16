@@ -1,383 +1,469 @@
 #!/usr/bin/env bash
-set -e
-set -o pipefail
 
+# curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0pre-gentoo.sh
+
+set -eo pipefail
+
+export ROOTDATE=$(date +%Y%M%d)
 export TARGET_USER=${TARGET_USER:-casey}
+export STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+export GRAPHICS=${GRAPHICS:-intel}
+#export SSID=set this
+#export WPA_PASSPHRASE=set this
 
-# Choose a user account to use for this installation
-get_user() {
-  if [ -z "${TARGET_USER-}" ]; then
-    mapfile -t options < <(find /home/* -maxdepth 0 -printf "%f\\n" -type d)
-    # if there is only one option just use that user
-    if [ "${#options[@]}" -eq "1" ]; then
-      readonly TARGET_USER="${options[0]}"
-      echo "Using user account: ${TARGET_USER}"
-      return
-    fi
+partition_disk() {
+  echo "***"
+  echo "Partitioning disks for efi, boot, swap and rpool"
+  echo "***"
+  # boot from sysrescuecd with zfs 2 baked into it
+  # https://xyinn.org/gentoo/livecd/
+  # get in and then do this stuff
 
-    # iterate through the user options and print them
-    PS3='command -v user account should be used? '
-
-    select opt in "${options[@]}"; do
-      readonly TARGET_USER=$opt
-      break
-    done
-  fi
+  echo "Preparing to partition ${DISK}"
+  # The plan:
+  # 512 MB system /boot/efi
+  # 1 GB boot (zfs) /boot
+  # 32 GB swap
+  # the rest of the disk ZFS /,/home,etc
+  parted -s -a optimal -- "/dev/${DISK}" \
+    unit mib \
+    mklabel gpt \
+    mkpart esp 1 513 \
+    mkpart boot 513 1537 \
+    mkpart swap 1537 34305 \
+    mkpart rootfs 34305 -1 \
+    set 1 boot on \
+    print \
+    quit
 }
 
-check_is_sudo() {
-  if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root."
-    exit
-  fi
+create_filesystems() {
+  echo "***"
+  echo "Creating filesystems, swap and zfs pools"
+  echo "***"
+  mkfs.fat -F32 /dev/${DISK}1
+
+  echo "rpool will ask for a passphrase"
+  zpool create -f \
+    -o ashift=12 \
+    -o cachefile= \
+    -O compression=lz4 \
+    -O acltype=posixacl \
+    -O atime=off \
+    -O xattr=sa \
+    -O encryption=on \
+    -O keyformat=passphrase \
+    -m none \
+    -R /mnt/gentoo \
+    rpool \
+    "/dev/${DISK}4"
+
+  ROOTDATE=$(date +%Y%M%d)
+  zfs create rpool/gentoo
+  zfs create -o mountpoint=/ rpool/gentoo/root-${ROOTDATE}
+  zpool set bootfs=rpool/gentoo/root-${ROOTDATE} rpool
+
+  zfs create rpool/gentoo_data
+  zfs create -o mountpoint=/var/lib/portage/distfiles rpool/gentoo_data/distfiles
+
+  zfs create rpool/data
+  zfs create -o mountpoint=/home rpool/data/home
+  zfs create -o mountpoint=/var/lib/docker rpool/data/docker
+  zfs set quota=100G rpool/data/docker
+
+  zpool create -f -d \
+    -o ashift=12 \
+    -o cachefile= \
+    -m /boot \
+    -R /mnt/gentoo \
+    boot \
+    "/dev/${DISK}2"
+
+  mkswap -f "/dev/${DISK}3"
+  swapon "/dev/${DISK}3"
+
+  zpool status
+
+  zfs list
 }
 
-setup_sources_min() {
-  # emerge --sync --quiet
-    # app-security/dirmngr \
-  cat <<-EOF >>/var/lib/portage/world
-app-misc/ca-certificates
-app-crypt/gnupg
-net-misc/curl
-sys-apps/lsb-release
+prepare_chroot() {
+  echo "***"
+  echo "Preparing for chrooting"
+  echo "***"
+  # prepare for chroot
+  cd /mnt/gentoo
+  mkdir boot/efi
+  mount "/dev/${DISK}1" boot/efi
+
+  # get amd64+systemd stage3 archive
+  echo ${STAGE3}
+  curl -L -o stage3.tar.xz https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/${STAGE3}
+  tar xpf stage3.tar.xz
+  rm stage3.tar.xz
+
+  mkdir etc/zfs
+  cp /etc/zfs/zpool.cache etc/zfs
+
+  cp --dereference /etc/resolv.conf etc/
+
+  mount --rbind /dev dev
+  mount --rbind /proc proc
+  mount --rbind /sys sys
+  mount --make-rslave dev
+  mount --make-rslave proc
+  mount --make-rslave sys
+
+  cat <<-EOF >>etc/fstab
+/dev/${DISK}1               /boot/efi       vfat            noauto        1 2
+/dev/${DISK}3               none            swap            sw            0 0
 EOF
-
-  # turn off translations, speed up apt update
-  # mkdir -p /etc/apt/apt.conf.d
-  # echo 'Acquire::Languages "none";' > /etc/apt/apt.conf.d/99translations
 }
 
- # sets up apt sources
- setup_sources() {
-   setup_sources_min;
+do_chroot() {
+  echo "***"
+  echo "Chrooting"
+  echo "***"
+  cd ~
+  SCRIPTNAME=$(basename "$0")
+  PATHNAME=$(dirname "$0")
+  cp "${PATHNAME}/${SCRIPTNAME}" /mnt/gentoo/install-stage0.sh
+  cd /mnt/gentoo
+  env -i HOME=/root \
+    TERM=$TERM \
+    DISK=$DISK \
+    TARGET_USER=$TARGET_USER \
+    ROOTDATE=$ROOTDATE \
+    HOSTNAME=$HOSTNAME \
+    chroot . bash -l -c "./install-stage0.sh chrooted"
+  }
 
-#    cat <<- EOF > /etc/apt/sources.list
-#   deb http://httpredir.debian.org/debian sid main contrib non-free
-#   deb-src http://httpredir.debian.org/debian/ sid main contrib non-free
+setup_portage() {
+  echo "***"
+  echo "Setting up portage"
+  echo "***"
 
-#   deb http://httpredir.debian.org/debian experimental main contrib non-free
-#   deb-src http://httpredir.debian.org/debian experimental main contrib non-free
-# EOF
+  cat <<-EOF >etc/portage/make.conf
+# See /usr/share/portage/config/make.conf.example
+USE="initramfs"
 
-#   # yubico
-#   cat <<- EOF > /etc/apt/sources.list.d/yubico.list
-#   deb http://ppa.launchpad.net/yubico/stable/ubuntu xenial main
-#   deb-src http://ppa.launchpad.net/yubico/stable/ubuntu xenial main
-# EOF
+MAKEOPTS="-j$(cat /proc/cpuinfo | grep "core id" | wc -l)"
 
-#   # tlp: Advanced Linux Power Management
-#   cat <<- EOF > /etc/apt/sources.list.d/tlp.list
-#   # tlp: Advanced Linux Power Management
-#   # http://linrunner.de/en/tlp/docs/tlp-linux-advanced-power-management.html
-#   deb http://repo.linrunner.de/debian sid main
-# EOF
-
-#   # Create an environment variable for the correct distribution
-#   CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
-#   export CLOUD_SDK_REPO
-
-#   # Add the Cloud SDK distribution URI as a package source
-#   cat <<- EOF > /etc/apt/sources.list.d/google-cloud-sdk.list
-#   deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main
-# EOF
-
-#   # Import the Google Cloud Platform public key
-#   curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-
-#   # Add the Google Chrome distribution URI as a package source
-#   cat <<- EOF > /etc/apt/sources.list.d/google-chrome.list
-#   deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/keybase.list
-#   deb http://prerelease.keybase.io/deb stable main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/lutris.list
-#   deb http://download.opensuse.org/repositories/home:/strycore/Debian_Unstable/ ./
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/microsoft-prod.list
-#   deb [arch=amd64] https://packages.microsoft.com/debian/10/prod buster main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/teams.list
-#    deb [arch=amd64] https://packages.microsoft.com/repos/ms-teams stable main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/vscode.list
-#    deb [arch=amd64] http://packages.microsoft.com/repos/vscode stable main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/slack.list
-#   deb https://packagecloud.io/slacktechnologies/slack/debian/ jessie main
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/spotify.list
-#   deb http://repository.spotify.com stable non-free
-# EOF
-
-# cat <<- EOF > /etc/apt/sources.list.d/github-cli.list
-#   deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
-# EOF
-
-#   # Import the slack public key
-#   echo "slack"
-#   curl -L "https://packagecloud.io/slacktechnologies/slack/gpgkey" 2> /dev/null | apt-key add - &>/dev/null
-
-#   # Import the storycore key
-#   echo "storycore"
-#   curl http://download.opensuse.org/repositories/home:/strycore/Debian_Unstable/Release.key | apt-key add -
-
-#   # Import the keybase key
-#   echo "keybase"
-#   curl https://keybase.io/docs/server_security/code_signing_key.asc | apt-key add -
-
-#   # Import the spotify keys
-#   echo "spotify"
-#   curl -sS https://download.spotify.com/debian/pubkey_0D811D58.gpg | apt-key add -
-
-#   # Import the microsoft key
-#   echo "ms"
-#   curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-
-#   # Import the Google Chrome public key
-#   echo "chrome"
-#   curl https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-
-#   # add the yubico ppa gpg key
-#   echo "yubi"
-#   apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 32CBA1A9
-
-#   # github
-#   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
-
-#   # add the tlp apt-repo gpg key
-#   # apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 6B283E95745A6D903009F7CA641EED65CD4E8809
-
-#   # linrunner
-#   # apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys BF851E76615EF34A
-
-}
-
-setup_makeconf() {
-  echo "Setting up make.conf and portage use"
-#USE="gnome-keyring systemd udev pulseaudio -elogind bluetooth cups nvme thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt policykit"
-  cat <<-EOF > /etc/portage/make.conf
 COMMON_FLAGS="-march=native -O2 -pipe"
 CFLAGS="\${COMMON_FLAGS}"
 CXXFLAGS="\${COMMON_FLAGS}"
 FCFLAGS="\${COMMON_FLAGS}"
 FFLAGS="\${COMMON_FLAGS}"
-MAKEOPTS="-j12"
+
+PORTDIR="/var/db/repos/gentoo"
+PORTAGE_TMPDIR="/var/tmp/portage"
+DISTDIR="/var/lib/portage/distfiles"
+
 ACCEPT_LICENSE="*"
+EMERGE_DEFAULT_OPTS="--with-bdeps=y --keep-going=y"
+FEATURES="buildpkg"
+
 LINGUAS="en enUS ro"
+
 LC_MESSAGES=C
-
-USE="gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus device-mapper apparmor X gtk qt5 policykit"
-EOF
-   mkdir -p /etc/portage/package.use
-   cat <<-EOF >/etc/portage/package.use/base
-*/* -branding -elogind -qt3support -wayland -aqua -xinerama
-app-crypt/pinentry gtk qt5 ncurses
-net-print/cups-filters jpeg pdf png tiff postscript
-sys-apps/fwupd nvme flashrom synaptics tpm
+GRUB_PLATFORMS="efi-64 coreboot"
+VIDEO_CARDS="${GRAPHICS}"
+LLVM_TARGETS="X86 AArch64 RISCV WebAssembly"
 EOF
 
-cat /etc/portage/make.conf
-# cat /etc/portage/package.use/base
+  mkdir -p /var/tmp/portage
+  mkdir -p etc/portage/package.use
+  echo "sys-boot/grub libzfs" >> /etc/portage/package.use/zfs
+  echo "sys-kernel/linux-firmware initramfs" >> /etc/portage/package.use/boot
+  mkdir -p etc/portage/repos.conf
+  cp /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
+
+  echo "***"
+  echo "Syncing portage tree, this could tage some time"
+  echo "***"
+  update_ports
+
+  # mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
+
+  eselect news read
+  emerge --quiet-build -uDNv @world
 }
 
-do_install() {
-  emerge --newuse --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
-  emerge --depclean --verbose
-  emerge --clean  --verbose
+setup_kernel() {
+  echo "***"
+  echo "Setting up kernel"
+  echo "***"
+  emerge --quiet-build net-misc/dhcp sys-kernel/genkernel sys-kernel/gentoo-sources
+
+  # need to gen kernel config make menuconfig
+  eselect kernel set 1
+  genkernel --makeopts=-j4 --no-install kernel
+
+  # now we have kernel we can install zfs-kmod
+  emerge --quiet-build sys-fs/zfs sys-fs/zfs-kmod sys-boot/grub
+  hostid >/etc/hostid
+  genkernel --makeopts=-j4 --zfs --bootloader=grub2 all
+
+  if [ "$(grub-probe /boot)" != "zfs" ]; then
+    echo "grub-probe did not return zfs, aborting"
+    exit 1
+  fi
+
+  echo "***"
+  echo "Setting up booting"
+  echo "***"
+  cat <<-EOF >>etc/default/grub
+GRUB_CMDLINE_LINUX="dozfs root=ZFS"
+EOF
+
+  mount -o remount,rw /sys/firmware/efi/efivars/
+  grub-install --efi-directory=/boot/efi
+  grub-mkconfig -o /boot/grub/grub.cfg
+
+  echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
+  systemctl enable zfs.target
+  systemctl enable zfs-import-cache
+  systemctl enable zfs-mount
+  systemctl enable zfs-import.target
 }
 
-base_min() {
+setup_user() {
+  echo "***"
+  echo "Setting up user account for ${TARGET_USER}, please set a password"
+  echo "***"
+  TARGET_USER=${TARGET_USER:-casey}
+  useradd -m -s /bin/bash -G wheel,portage ${TARGET_USER}
+  passwd ${TARGET_USER}
+  setup_sudo
+}
 
-  # emerge --sync --quiet
+setup_timezone() {
+  echo "***"
+  echo "Setting Timezone"
+  echo "***"
+  ln -sf /usr/share/zoneinfo/America/Chicago /etc/localtime
+}
 
-    # adduser \
-    # hostname \
-    # locales \
-    # mount \
-    # policykit-1 \
-    # ninja-build \
-    # dnsutils \
-    # indent \
-    # tzdata \
+setup_locale() {
+  echo "***"
+  echo "Setting english utf8 locale"
+  echo "***"
+  echo "LANG=\"en_US.utf8\"" >> /etc/locale.conf
+  echo "en_US.UTF8 UTF-8" >> /etc/locale.gen
+  locale-gen
+  env-update && source /etc/profile
+}
+
+setup_hostname() {
+  echo "***"
+  echo "Setup hostname"
+  echo "***"
+  # cant run this until after first boot
+  hostnamectl set-hostname ${HOSTNAME}
+}
+
+setup_network() {
+  echo "***"
+  echo "Setting up dhcp for ethernet interfaces."
+  echo "***"
+  cat <<-EOF > /etc/systemd/network/50-dhcp.network
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+EOF
+  cat <<-EOF > /etc/systemd/network/00-wireless-dhcp.network
+[Match]
+Name=wlan0
+
+[Network]
+DHCP=yes
+EOF
+  emerge --quiet-build --verbose net-wireless/iw net-wireless/wpa_supplicant
+  cat <<-EOF > /etc/wpa_supplicant/wpa_supplicant.conf
+# Allow users in the 'wheel' group to control wpa_supplicant
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
+
+# Make this file writable for wpa_gui / wpa_cli
+update_config=1
+EOF
+  wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
+
+  systemctl enable wpa_supplicant@wlan0.service
+  systemctl enable systemd-networkd.service
+
+}
+
+cleanup_chroot() {
+  echo "***"
+  echo "Cleaning up"
+  echo "***"
+  umount -lR /mnt/gentoo/{dev,proc,sys,boot}
+  cd /
+  zfs umount -a
+  swapoff /dev/${DISK}3
+  # neet do unmount stuff, export and reboot
+  # TODO fix exporting rpool
+  zpool export rpool
+  zpool export boot
+  echo "***"
+  echo "Finished with the initial setup."
+  echo "***"
+}
+
+setup_profile() {
+  echo "***"
+  echo Selecting desktop systemd profile
+  echo "***"
+  eselect profile set $(eselect profile list | grep "amd64/17.1/desktop/systemd" | tr -d '[]' | awk '{print $1}')
+  echo "dev-lang/rust rls rustfmt wasm" >> /etc/portage/package.use/rust
+  echo "virtual/rust rustfmt" >> /etc/portage/package.use/rust
+}
+
+update_ports() {
+  echo "***"
+  echo Downloading portage tree
+  echo "***"
+  emerge --sync --quiet
+}
+
+bring_up_to_baseline() {
+  echo "***"
+  echo Rebuilding world with new profile and base use flags
+  echo "***"
+  emerge --newuse --update --deep --quiet-build --autounmask-write --autounmask-continue --reinstall=changed-use @world
+}
+
+setup_sudo() {
+  echo "***"
+  echo "Setting up sudo for ${TARGET_USER}"
+  echo "***"
+  emerge --quiet-build app-admin/sudo
+  gpasswd -a "$TARGET_USER" systemd-journal
+  gpasswd -a "$TARGET_USER" systemd-network
+
+  { \
+    echo -e "Defaults	secure_path=\"/usr/local/go/bin:/home/${TARGET_USER}/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/bcc/tools:/home/${TARGET_USER}/.cargo/bin\""; \
+    echo -e 'Defaults	env_keep += "ftp_proxy http_proxy https_proxy no_proxy GOPATH EDITOR"'; \
+    echo -e "${TARGET_USER} ALL=(ALL) NOPASSWD:ALL"; \
+    echo -e "${TARGET_USER} ALL=NOPASSWD: /sbin/ifconfig, /sbin/ifup, /sbin/ifdown, /sbin/ifquery"; \
+  } > "/etc/sudoers.d/${TARGET_USER}"
+}
+
+select_base() {
   cat <<-EOF >>/var/lib/portage/world
 app-admin/sudo
 app-arch/bzip2
 app-arch/gzip
 app-arch/tar
+app-arch/unar
 app-arch/unzip
 app-arch/xz-utils
 app-arch/zip
-app-misc/jq
-dev-tcltk/expect
-dev-util/strace
-dev-vcs/git
-net-firewall/nftables
-net-misc/wget
-net-wireless/iw
-sys-apps/coreutils
-sys-apps/file
-sys-apps/findutils
-sys-apps/grep
-sys-apps/less
-sys-apps/net-tools
-sys-devel/automake
-sys-devel/bc
-sys-devel/gcc
-sys-devel/make
-sys-process/lsof
-EOF
-
-  # apt -y autoremove
-  # apt autoclean
-  # apt clean
-}
-
-# installs base packages
-# the utter bare minimal shit
-base() {
-  base_min;
-
-  echo "*** Installing base"
-    # cgroupfs-mount \
-    # cpufrequtils \
-    # fwupdate \
-    # gnupg-agent \
-    # google-cloud-sdk \
-    # libimobiledevice6 \
-    # libpam-systemd \
-    # pcscd \
-    # scdaemon \
-    # pinentry-curses \
-    # gh \
-    # texlive \
-    # software-properties-common \
-    # locate \
-    # mpd \
-    # netbase \
-# gnome-base/gdm
-  cat <<-EOF >>/var/lib/portage/world
-app-arch/unar
+app-crypt/gnupg
 app-crypt/pinentry
 app-editors/emacs
 app-emulation/docker
 app-emulation/docker-cli
 app-emulation/docker-compose
 app-emulation/docker-credential-helpers
+app-misc/ca-certificates
+app-misc/jq
 app-misc/ranger
 app-shells/zsh
+dev-tcltk/expect
 dev-util/ctags
 dev-util/pkgconf
+dev-util/strace
+dev-util/github-cli
+dev-vcs/git
 exuberant-ctags
 net-analyzer/netcat
 net-analyzer/prettyping
 net-analyzer/tcptraceroute
 net-analyzer/traceroute
 net-firewall/nftables
+net-firewall/nftables
 net-libs/libssh2
 net-misc/bridge-utils
+net-misc/curl
 net-misc/openssh
 net-misc/rsync
+net-misc/wget
 net-print/brlaser
 net-wireless/bluez
+net-wireless/iw
 net-wireless/iwd
 sys-apps/bolt
+sys-apps/coreutils
+sys-apps/file
+sys-apps/findutils
 sys-apps/fwupd
+sys-apps/grep
 sys-apps/iproute2
+sys-apps/less
 sys-apps/lm-sensors
+sys-apps/lsb-release
 sys-apps/lshw
+sys-apps/net-tools
 sys-apps/the_silver_searcher
+sys-devel/automake
+sys-devel/bc
+sys-devel/gcc
+sys-devel/make
 sys-process/htop
+sys-process/lsof
 sys-process/psmisc
 EOF
 
-# sys-apps/apparmor
+  update_use "gnome-keyring systemd udev pulseaudio bluetooth cups thunderbolt uefi gnutls dbus apparmor wayland X gtk qt5 policykit"
 
-
-  #cat <<- EOF > /etc/default/locale
-  ##  File generated by update-locale
-  #LANG=en_US.UTF-8
-  #EOF
-
-  # sed -i '/en_US.UTF-8/ s/^# //' /etc/locale.gen
-  # locale-gen -a
-  # dpkg-reconfigure --frontend=noninteractive locales && \
-    # update-locale LANG=en_US.UTF-8
-
-  # sed -i '/WaylendEnable=false/ s/^#\s*//' /etc/gdm3/daemon.conf
-  }
-
-# setup sudo for a user
-# because fuck typing that shit all the time
-# just have a decent password
-# and lock your computer when you aren't using it
-# if they have your password they can sudo anyways
-# so its pointless
-# i know what the fuck im doing ;)
-setup_sudo() {
-  # add user to sudoers
-  adduser "$TARGET_USER" sudo
-
-  # add user to systemd groups
-  # then you wont need sudo to view logs and shit
-  gpasswd -a "$TARGET_USER" systemd-journal
-  gpasswd -a "$TARGET_USER" systemd-network
-
-  # create docker group
-  sudo groupadd -f docker
-  sudo gpasswd -a "$TARGET_USER" docker
-
-  # add go path to secure path
-  { \
-    echo -e "Defaults	secure_path=\"/usr/local/go/bin:/home/${TARGET_USER}/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/bcc/tools:/home/${TARGET_USER}/.cargo/bin\""; \
-    echo -e 'Defaults	env_keep += "ftp_proxy http_proxy https_proxy no_proxy GOPATH EDITOR"'; \
-    echo -e "${TARGET_USER} ALL=(ALL) NOPASSWD:ALL"; \
-    echo -e "${TARGET_USER} ALL=NOPASSWD: /sbin/ifconfig, /sbin/ifup, /sbin/ifdown, /sbin/ifquery"; \
-  } >> /etc/sudoers
-
-  # setup downloads folder as tmpfs
-  # that way things are removed on reboot
-  # i like things clean but you may not want this
-  mkdir -p "/home/${TARGET_USER}/Downloads"
-  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
-  echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
-  (
-    set +e
-    sudo mount "/home/${TARGET_USER}/Downloads"
-    chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
-  )
+  echo "dev-libs/boost numpy python" >> /etc/portage/package.use/boost
+  mkdir -p /etc/portage/package.accept_keywords
+  echo "dev-util/github-cli ~amd64" >> /etc/portage/package.accept_keywords/gh
 }
 
-# install graphics drivers
-install_graphics() {
-  local system=$1
+update_use() {
+  let NEWUSE=$1
+  let OLDUSE=$(env -i bash -c 'source /etc/portage/make.conf; echo $USE')
+  let RESULTUSE="${OLDUSE} ${NEWUSE}"
+  sed -i 's/USE=.*/USE="${RESULTUSE}"/' /etc/portage/make.conf
+}
 
-  if [[ -z "$system" ]]; then
-    echo "You need to specify whether it's intel, geforce or optimus"
-    exit 1
-  fi
+set_video_cards() {
+  let NEWVIDEO=$1
+  sed -i 's/VIDEO_CARDS=.*/VIDEO_CARDS="${NEWVIDEO}"/' /etc/portage/make.conf
+}
 
+select_laptop() {
+  #uptade_use if needed
+  cat <<-EOF >>/var/lib/portage/world
+EOF
+}
 
-  case $system in
+select_wm() {
+  #uptade_use if needed
+  case $GRAPHICS in
     "intel")
-      echo 'VIDEO_CARDS="intel"' >> /etc/portage/make.conf
+      set_video_cards "intel i965 iris"
+  cat <<-EOF >> /var/lib/portage/world
+x11-drivers/xf86-video-intel
+x11-drivers/libva-intel-driver
+x11-libs/libva-intel-media-driver
+EOF
+  echo "x11-drivers/xf86-video-intel dri sna tools udev uxa xvmc" >> /etc/portage/package.use/video
       ;;
     "geforce")
-      echo 'VIDEO_CARDS="nvidia"' >> /etc/portage/make.conf
-cat <<-EOF >> /var/lib/portage/world
+      set_video_cards "nvidia"
+  cat <<-EOF >> /var/lib/portage/world
 x11-drivers/nvidia-drivers
 EOF
       ;;
     "optimus")
-      echo 'VIDEO_CARDS="nvidia"' >> /etc/portage/make.conf
-cat <<-EOF >> /var/lib/portage/world
+      set_video_cards "nvidia intel"
+  cat <<-EOF >> /var/lib/portage/world
 x11-drivers/nvidia-drivers
 x11-misc/bumblebee
 x11-misc/primus
@@ -390,115 +476,110 @@ EOF
   esac
 
 cat <<-EOF >> /var/lib/portage/world
-x11-base/xorg-x11
-x11-base/xorg-server
-x11-base/xorg-drivers
-x11-base/xorg-proto
+app-crypt/keybase
+app-editors/vscode
+app-misc/neofetch
+dev-libs/weston
+game-util/lutris
+games-emulation/higan
+gnome-extra/gucharmap
+gui-apps/swaybg
+gui-apps/swayidle
+gui-apps/swaylock
+gui-apps/waybar
+gui-wm/sway
+kde-misc/kdeconnect
+media-gfx/flameshot
+media-gfx/inkscape
+media-sound/alsa-utils
+media-sound/pavucontrol
+media-sound/playerctl
+media-sound/pulseaudio
+media-sound/pulseaudio-modules-bt
+media-sound/spotify
+media-video/vlc
+net-im/slack
+net-im/teams
+net-misc/remmina
+www-client/google-chrome
+www-client/qutebrowser
+www-clinet/firefox
+x11-base/xwayland
+x11-terms/kitty
+x11-terms/kitty-terminfo
 EOF
+
+  echo "dev-libs/weston drm wayland-compositor xwayland" >> /etc/portage/package.use/wayland
 
 }
 
-# install stuff for i3 window manager
-install_wmapps() {
-  apt update || true
-  apt install -y \
-    alsa-utils \
-    feh \
-    i3 \
-    i3lock-fancy \
-    i3status \
-    flameshot \
-    suckless-tools \
-    kitty \
-    rofi \
-    usbmuxd \
-    xclip \
-    picom \
-    arandr \
-    adwaita-icon-theme \
-    breeze-cursor-theme \
-    breeze-gtk-theme \
-    breeze-icon-theme \
-    dunst \
-    firefox \
-    gucharmap \
-    hicolor-icon-theme \
-    higan \
-    inkscape \
-    google-chrome-stable \
-    kdeconnect \
-    lxappearance \
-    neofetch \
-    oxygen-icon-theme \
-    pavucontrol \
-    pinentry-qt \
-    remmina \
-    vlc \
-    wmctrl \
-    snapd \
-    libxcb1-dev \
-    libxss-dev \
-    libpulse-dev \
-    libxcb-screensaver0-dev \
-    teams \
-    code-insiders \
-    lutris \
-    slack-desktop \
-    spotify-client \
-    keybase \
-    --no-install-recommends
+do_emerge() {
+  emerge --newuse --changed-use --update --deep --quiet-build --complete-graph --autounmask-write --autounmask-continue @world
+}
 
+do_cleanup() {
+  perl-cleaner --all
+  emerge --depclean  --verbose
+}
+
+check_is_sudo() {
+  if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root."
+    exit
+  fi
 }
 
 usage() {
-  echo -e "install.sh\\n\\tThis script installs my basic setup for a debian laptop\\n"
+  echo -e "install.sh\\n\\tThis script sets up a gentoo system\\n"
   echo "Usage:"
-  echo "  base                                - setup sources & install base pkgs"
-  echo "  basemin                             - setup sources & install base min pkgs"
-  echo "  graphics {intel, geforce, optimus}  - install graphics drivers"
-  echo "  wm                                  - install window manager/desktop pkgs"
+  echo "  prepare                             - Prepare new maching for first boot"
+  echo "  chrooted                            - Initial chroot installation (this is run by prepare)"
+  echo "  profile                             - Sets the desktop/systemd profile"
+  echo "  base                                - Installs base software"
+  echo "  wm                                  - Installs GUI environment"
+  echo "  laptop                              - Setup up laptop specific settings"
 }
 
 main() {
   local cmd=$1
+
+  set -u
 
   if [[ -z "$cmd" ]]; then
     usage
     exit 1
   fi
 
-  if [[ $cmd == "base" ]]; then
-    check_is_sudo
-    get_user
-
-    setup_makeconf
-    # setup /etc/apt/sources.list
-    setup_sources
-
-    base
-    do_install
-    setup_sudo
-  elif [[ $cmd == "basemin" ]]; then
-    check_is_sudo
-    get_user
-
-    setup_makeconf
-    # setup /etc/apt/sources.list
-    setup_sources_min
-
-    base_min
-    do_install
-    setup_sudo
-  elif [[ $cmd == "graphics" ]]; then
-    check_is_sudo
-
-    install_graphics "$2"
-    do_install
+  if [[ $cmd == "prepare" ]]; then
+    partition_disk
+    create_filesystems
+    prepare_chroot
+    do_chroot
+    cleanup_chroot
+    echo "reboot and run insall-stage0.sh profile"
+  elif [[ $cmd == "chrooted" ]]; then
+    setup_portage
+    setup_kernel
+    setup_user
+    setup_timezone
+    setup_locale
+    setup_network
+  elif [[ $cmd == "profile" ]]; then
+    setup_hostname
+    setup_profile
+    bring_up_to_baseline
+  elif [[ $cmd == "base" ]]; then
+    select_base
+    do_emerge
+    do_cleanup
   elif [[ $cmd == "wm" ]]; then
-    check_is_sudo
-
-    install_wmapps
-    do_install
+    select_wm
+    do_emerge
+    do_cleanup
+  elif [[ $cmd == "laptop" ]]; then
+    select_laptop
+    do_emerge
+    do_cleanup
   else
     usage
   fi

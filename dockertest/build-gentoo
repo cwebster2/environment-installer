@@ -1,0 +1,10 @@
+docker build \
+  --build-arg DISTRO=gentoo \
+  --build-arg IMAGE=dotfiles \
+  --build-arg TAG=gentoo-v4 \
+  -t dotfiles:gentoo-v4 \
+  --network host \
+  -f Dockerfile \
+  .. | tee build.log
+
+#  /* --build-arg IMAGE=gentoo/stage3 \ */

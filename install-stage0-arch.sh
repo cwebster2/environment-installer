@@ -2,14 +2,14 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-arch.sh
 
-# TODO tmpfs on ~/Downloads azuredatastudio
+# TODO tmpfs on ~/Downloads docker zfs config
 set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
-export HOSTNAME=${HOSTNAME:-${TARGET_USER}book}
+# export HOSTNAME
 # export SSID=set this
 # export WPA_PASSPHRASE=set this
 
@@ -120,7 +120,7 @@ create_filesystems() {
   zfs mount -a
 
   mount | grep /mnt/os
-  
+
   echo "***"
   echo "*** ZFS pools imported and datasets mounted"
   echo "***"
@@ -154,7 +154,6 @@ prepare_chroot() {
   cp --dereference /etc/resolv.conf etc/
 
   genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
-  # genfstab -U -p /mnt/os | grep -e '/dev/sd' -e '# bpool' -A 1 | grep -v -e "^--$" > etc/fstab
 }
 
 do_chroot() {
@@ -188,6 +187,7 @@ cleanup_chroot() {
   echo "Cleaning up"
   echo "***"
   cd /
+  rm /mnt/os/install-stage0.sh
   umount /mnt/os/boot/efi
   zfs umount -a
   swapoff /dev/disk/by-id/${DISK}-part3
@@ -309,10 +309,28 @@ setup_user() {
   TARGET_USER=${TARGET_USER:-casey}
   useradd -m -s /bin/zsh -G wheel ${TARGET_USER}
   passwd ${TARGET_USER}
+
   # this is so the zsh setup doesn't bother us until dotfiles are installed
   touch /home/${TARGET_USER}/.zshrc
   chown ${TARGET_USER} /home/${TARGET_USER}/.zshrc
   setup_sudo
+
+  # Setup ~/Downloads as a tmpfs
+  mkdir -p "/home/${TARGET_USER}/Downloads"
+  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
+  echo -e "\\n# tmpfs for downloads\\ntmpfs\\t/home/${TARGET_USER}/Downloads\\ttmpfs\\tnodev,nosuid,size=2G\\t0\\t0" >> /etc/fstab
+  mount "/home/${TARGET_USER}/Downloads"
+  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/Downloads"
+  umount "/home/${TARGET_USER}/Downloads"
+}
+
+get_installer() {
+  echo "***"
+  echo "*** Getting stage 1 installer for post-reboot"
+  echo "***"
+  curl -o "/home/${TARGET_USER}/install.sh" https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh
+  chmod 755 "/home/${TARGET_USER}/install.sh"
+  chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/install.sh"
 }
 
 setup_sudo() {
@@ -355,6 +373,7 @@ install_base() {
     expect \
     file \
     findutils \
+    fuse \
     fwupd \
     gcc \
     git \
@@ -409,6 +428,23 @@ install_base() {
     su - ${TARGET_USER} -c 'cd /usr/src/yay; makepkg --noconfirm -sri'
     popd
   )
+
+  echo "***"
+  echo "*** Setting up ${TARGET_USER} to use docker and enable zfs"
+  echo "***"
+  # Setup Docker
+  gpasswd -a ${TARGET_USER} docker
+  mkdir -p /etc/docker
+  cat <<-EOF >>/etc/docker/daemon.json
+{
+  "storage-driver": "zfs"
+}
+EOF
+
+  install_from_aur docker-credential-secretservice
+
+  systemctl enable docker
+  systemctl start docker
 
   echo "***"
   echo "*** Base install target finiished"
@@ -481,16 +517,21 @@ install_gui() {
     vlc \
     vscode
 
-
   install_from_aur \
+    azuredatastudio-bin \
     google-chrome \
     spotify \
     plymouth-zfs \
-    greetd
+    greetd \
+    greetd-gtkgreet
 
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   mkinitcpio -P
 
+  # see /etc/greetd/config.toml
+  #     /etc/greetd/sway-config
+  #     /etc/greetd/environments
+  #     systemctl enable greetd
   echo "***"
   echo "*** GUI Install Target Finished"
   echo "***"
@@ -578,6 +619,7 @@ main() {
     setup_hostname
     setup_network
     setup_user
+    get_installer
     setup_pacman_keys
     add_arch_zfs
     setup_boot
