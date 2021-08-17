@@ -2,7 +2,7 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-arch.sh
 
-# TODO tmpfs on ~/Downloads docker zfs config
+# TODO wm
 set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
@@ -496,18 +496,25 @@ install_gui() {
   pacman --noconfirm -S \
     alsa-utils \
     discord \
-    firefox \
     emacs \
+    firefox \
     flameshot \
+    gdm \
+    gtk3 \
+    gtk4 \
     gucharmap \
     inkscape \
     kdeconnect \
     keybase \
     kitty \
+    materia-gtk-theme \
     neofetch \
     pavucontrol \
     playerctl \
     pulseaudio \
+    qt5-wayland \
+    qt5ct \
+    qt6-wayland \
     qutebrowser \
     remmina \
     sway \
@@ -515,26 +522,115 @@ install_gui() {
     swayidle \
     swaylock \
     vlc \
-    vscode
+    vscode \
+    xorg-xwayland
 
   install_from_aur \
     azuredatastudio-bin \
     google-chrome \
     spotify \
     plymouth-zfs \
+    plymouth-theme-dark-arch \
     greetd \
     greetd-gtkgreet
 
-  sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
-  mkinitcpio -P
+  setup_bootlogo
+  setup_greeter
 
-  # see /etc/greetd/config.toml
-  #     /etc/greetd/sway-config
-  #     /etc/greetd/environments
-  #     systemctl enable greetd
   echo "***"
   echo "*** GUI Install Target Finished"
   echo "***"
+}
+
+setup_bootlogo() {
+  echo "***"
+  echo "*** Setting up plymouth bootlogo"
+  echo "***"
+  sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
+  plymouth-set-default-theme -R dark-arch
+}
+
+setup_greeter() {
+  echo "***"
+  echo "*** Setting up greeter"
+  echo "***"
+
+  mkdir -p /etc/greetd
+
+  cat <<-EOF >/etc/greetd/environments
+  sway-run
+  bash
+EOF
+
+  cat <<-EOF >/etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+# command = "agreety --cmd $SHELL"
+command = "sway --config /etc/greetd/sway-config"
+user = "greeter"
+
+EOF
+
+  cat <<-EOF >/etc/greetd/sway-config
+# `-l` activates layer-shell mode. Notice that `swaymsg exit` will run after gtkgreet.
+exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
+
+bindsym Mod4+shift+q exec swaynag \
+-t warning \
+-m 'What do you want to do?' \
+-b 'Poweroff' 'systemctl poweroff' \
+-b 'Reboot' 'systemctl reboot'
+
+include /etc/sway/config.d/*
+EOF
+
+  cat <<-EOF >/etc/greetd/gtkgreet.css
+window {
+   background-image: url("file:///etc/greetd/wallpaper.jpg");
+   background-color: #000000;
+   background-size: cover;
+   background-position: center;
+}
+
+box#body {
+   background-color: rgba(0, 0, 0, 0.5);
+   border-radius: 10px;
+   padding: 50px;
+}
+EOF
+
+  cat <<-EOF >/usr/local/bin/sway-run
+  #!/usr/bin/env bash
+
+  # Session
+  export XDG_SESSION_TYPE=wayland
+  export XDG_SESSION_DESKTOP=sway
+  export XDG_CURRENT_DESKTOP=sway
+
+  source /usr/local/bin/wayland_enablement
+
+  systemd-cat --identifier=sway sway $@
+EOF
+  chmod 755 /usr/local/bin/sway-run
+
+  cat <<-EOF >/usr/local/bin/wayland_enablement
+  #!/usr/bin/env bash
+  export MOZ_ENABLE_WAYLAND=1
+  export CLUTTER_BACKEND=wayland
+  export QT_QPA_PLATFORM=wayland-egl
+  export ECORE_EVAS_ENGINE=wayland-egl
+  export ELM_ENGINE=wayland_egl
+  export SDL_VIDEODRIVER=wayland
+  export _JAVA_AWT_WM_NONREPARENTING=1
+  export NO_AT_BRIDGE=1
+EOF
+  chmod 755 /usr/local/bin/wayland-enablement
+
+  curl -o /etc/greetd/wallpaper.jpg https://raw.githubusercontent.com/cwebster2/dotfiles/main/.config/i3/wallpaper.jpg
+  chown -R greeter /etc/greetd
+  systemctl enable greetd
 }
 
 install_from_aur() {

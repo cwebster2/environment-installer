@@ -9,6 +9,7 @@ export TARGET_USER=${TARGET_USER:-casey}
 export STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export GRAPHICS=${GRAPHICS:-intel}
+export SWAPSIZE=${SWAPSIZE:-32}
 #export SSID=set this
 #export WPA_PASSPHRASE=set this
 
@@ -26,13 +27,14 @@ partition_disk() {
   # 1 GB boot (zfs) /boot
   # 32 GB swap
   # the rest of the disk ZFS /,/home,etc
+  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 1537))
   parted -s -a optimal -- "/dev/${DISK}" \
     unit mib \
     mklabel gpt \
     mkpart esp 1 513 \
     mkpart boot 513 1537 \
-    mkpart swap 1537 34305 \
-    mkpart rootfs 34305 -1 \
+    mkpart swap 1537 ${SWAP_OFFSET} \
+    mkpart rootfs ${SWAP_OFFSET} -1 \
     set 1 boot on \
     print \
     quit
@@ -426,20 +428,35 @@ EOF
 }
 
 update_use() {
-  let NEWUSE=$1
-  let OLDUSE=$(env -i bash -c 'source /etc/portage/make.conf; echo $USE')
-  let RESULTUSE="${OLDUSE} ${NEWUSE}"
-  sed -i 's/USE=.*/USE="${RESULTUSE}"/' /etc/portage/make.conf
+  NEWUSE=$1
+  OLDUSE=$(env -i bash -c 'source /etc/portage/make.conf; echo $USE')
+  RESULTUSE="${OLDUSE} ${NEWUSE}"
+  sed -i "s/USE=.*/USE=\"${RESULTUSE}\"/" /etc/portage/make.conf
 }
 
 set_video_cards() {
-  let NEWVIDEO=$1
-  sed -i 's/VIDEO_CARDS=.*/VIDEO_CARDS="${NEWVIDEO}"/' /etc/portage/make.conf
+  NEWVIDEO=$1
+  sed -i "s/VIDEO_CARDS=.*/VIDEO_CARDS=\"${NEWVIDEO}\"/" /etc/portage/make.conf
 }
 
 select_laptop() {
   #uptade_use if needed
   cat <<-EOF >>/var/lib/portage/world
+sys-power/thermald
+app-laptop/laptop-mode-tools
+EOF
+  echo "app-laptop/laptop-mode-tools acpi -apm bluetooth" >> /etc/portage/package.use/laptop
+}
+
+configure_laptop() {
+  # https://wiki.gentoo.org/wiki/Power_management/Guide
+  echo "ENABLE_LAPTOP_MODE_ON_BATTERY=1" >> /etc/laptop-mode/conf.d/cpufreq.conf
+  systemctl enable thermald
+  systemctl enable laptop-mode.service
+
+  cat <<-EOF >>/etc/udev/rules.d/99-lowbat.rules
+# Suspend the system when battery level drops to 5% or lower
+SUBSYSTEM=="power_supply", ATTR{status}=="Discharging", ATTR{capacity}=="[0-5]", RUN+="/usr/bin/systemctl hibernate"
 EOF
 }
 
@@ -450,7 +467,7 @@ select_wm() {
       set_video_cards "intel i965 iris"
   cat <<-EOF >> /var/lib/portage/world
 x11-drivers/xf86-video-intel
-x11-drivers/libva-intel-driver
+x11-libs/libva-intel-driver
 x11-libs/libva-intel-media-driver
 EOF
   echo "x11-drivers/xf86-video-intel dri sna tools udev uxa xvmc" >> /etc/portage/package.use/video
@@ -475,12 +492,11 @@ EOF
       ;;
   esac
 
-cat <<-EOF >> /var/lib/portage/world
+  cat <<-EOF >> /var/lib/portage/world
 app-crypt/keybase
 app-editors/vscode
 app-misc/neofetch
-dev-libs/weston
-game-util/lutris
+app-select/eselect-repository
 games-emulation/higan
 gnome-extra/gucharmap
 gui-apps/swaybg
@@ -499,18 +515,41 @@ media-sound/pulseaudio-modules-bt
 media-sound/spotify
 media-video/vlc
 net-im/slack
-net-im/teams
+net-im/discord
 net-misc/remmina
 www-client/google-chrome
 www-client/qutebrowser
-www-clinet/firefox
-x11-base/xwayland
+www-client/firefox
 x11-terms/kitty
 x11-terms/kitty-terminfo
 EOF
 
-  echo "dev-libs/weston drm wayland-compositor xwayland" >> /etc/portage/package.use/wayland
+# x11-base/xwayland
+# games-util/lutris
 
+  echo "gui-apps/waybar network popups tray wifi" >> /etc/portage/package.use/wayland
+  update_use "vulkan gles2"
+
+  cat <<-EOF >>/etc/portage/package.accept_keywords/gui
+x11-terms/kitty ~amd64
+x11-terms/kitty-terminfo ~amd64
+app-crypt/keybase ~amd64
+app-editors/vscode ~amd64
+games-emulation/higan ~amd64
+gui-apps/waybar ~amd64
+media-sound/pulseaudio-modules-bt  ~amd64
+net-im/slack ~amd64
+net-im/teams ~amd64
+www-client/qutebrowser ~amd64
+x11-base/xwayland ~amd64
+dev-python/adblock ~amd64
+dev-util/maturin ~amd64
+dev-libs/date ~amd64
+EOF
+}
+
+configure_wm() {
+  eselect repository enable steam-overlay
 }
 
 do_emerge() {
@@ -575,10 +614,12 @@ main() {
   elif [[ $cmd == "wm" ]]; then
     select_wm
     do_emerge
+    configure_wm
     do_cleanup
   elif [[ $cmd == "laptop" ]]; then
     select_laptop
     do_emerge
+    configure_laptop
     do_cleanup
   else
     usage
