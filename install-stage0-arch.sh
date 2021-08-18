@@ -528,11 +528,11 @@ install_gui() {
   install_from_aur \
     azuredatastudio-bin \
     google-chrome \
-    spotify \
-    plymouth-zfs \
-    plymouth-theme-dark-arch \
     greetd \
-    greetd-gtkgreet
+    greetd-gtkgreet \
+    plymouth-theme-dark-arch \
+    plymouth-zfs \
+    spotify
 
   setup_bootlogo
   setup_greeter
