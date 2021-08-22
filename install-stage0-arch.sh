@@ -6,7 +6,7 @@
 set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
-export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
 # export HOSTNAME
@@ -60,7 +60,8 @@ create_filesystems() {
     -O acltype=posixacl \
     -O relatime=on \
     -O xattr=sa \
-    -O encryption=on \
+    -O normalization=formD \
+    -O encryption=aes-256-gcm \
     -O keyformat=passphrase \
     -O canmount=off \
     -O devices=off \
@@ -74,8 +75,13 @@ create_filesystems() {
   zpool set bootfs=rpool/root/arch rpool
 
   zfs create -o mountpoint=/var/log        rpool/log
-  zfs create -o mountpoint=/var/lib/docker rpool/docker
-  zfs set quota=100G rpool/docker
+
+  zfs create \ 
+    -o mountpoint=/var/lib/docker \
+    -o dedup=sha512 \
+    -o quota=10G \
+    rpool/docker
+
   zfs create -o mountpoint=/usr/local rpool/usrlocal
   zfs create rpool/opt
 
@@ -297,7 +303,10 @@ setup_boot() {
   zpool set cachefile=/etc/zfs/zpool.cache rpool
   zpool set cachefile=/etc/zfs/zpool.cache bpool
   mkinitcpio -P
-  echo 'GRUB_CMDLINE_LINUX="root=ZFS=rpool/root/arch"' >> /etc/default/grub
+  # get uuid of the swap disk
+  UUID=$(cat /etc/fstab | grep swap | awk '{print $1}')
+  echo "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/root/arch resume=${UUID}\"" >> /etc/default/grub
+  sed -i "s/^GRUB_PRELOAD_MODULES=.*$/GRUB_PRELOAD_MODULES=\"part_gpt\"/" /etc/default/grub
   ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
   ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
 }
