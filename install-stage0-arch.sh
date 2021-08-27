@@ -152,7 +152,6 @@ prepare_chroot() {
     iproute2 \
     iw \
     wpa_supplicant \
-    grub \
     refind \
     efibootmgr \
     zsh \
@@ -277,7 +276,7 @@ setup_pacman_keys() {
   echo "***"
 
   pacman-key --init
-  pacman-key --refresh-keys
+  # pacman-key --refresh-keys
 }
 
 add_arch_zfs() {
@@ -314,11 +313,9 @@ setup_boot() {
   # sed -i "s/^GRUB_PRELOAD_MODULES=.*$/GRUB_PRELOAD_MODULES=\"part_gpt\"/" /etc/default/grub
   # ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
   # ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
-  
-  # sbsigntools?
-  refind-insall
 
-  bash
+  # sbsigntools?
+  refind-install
 
   # loglevel=3 quiet
   cat <<-EOF > /boot/refind_linux.conf
@@ -327,9 +324,9 @@ setup_boot() {
   "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=initramfs-%v.img systemd.unit=multi-user.target"
 EOF
 
-  cp /boot/EFI/refind/refind.conf /boo/EFI/refind/refind.conf.orig
+  cp /boot/EFI/refind/refind.conf /boot/EFI/refind/refind.conf.orig
   mkdir -p /boot/EFI/refind/icons/local
-  cp /etc/greetd/wallpaper.jpg /boot/EFI/refind/icons/local/banner.jpg
+  curl -o /boot/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
   cat <<-EOF > /boot/EFI/refind/refind.conf
   timeout 5
   use_nvram false
@@ -340,7 +337,7 @@ EOF
   extra_kernel_version_strings linux-hardened,linux-zen,linux-lts,linux
 EOF
 
-  mkdir -p /etc/pacman.d/hooks/refind.hook
+  mkdir -p /etc/pacman.d/hooks
   cat <<-EOF >> /etc/pacman.d/hooks/refind.hook
   [Trigger]
   Operation=Upgrade
