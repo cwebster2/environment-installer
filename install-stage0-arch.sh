@@ -32,7 +32,7 @@ partition_disk() {
   # 1 GB boot (zfs) /boot
   # $SWAPSIZE GiB swap
   # the rest of the disk ZFS /,/home,etc
-  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 1537))
+  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 513))
     # mkpart boot 513 1537 \
   parted -s -a optimal -- "/dev/disk/by-id/${DISK}" \
     unit mib \
@@ -67,7 +67,7 @@ create_filesystems() {
     -m none \
     -R /mnt/os \
     rpool \
-    "/dev/disk/by-id/${DISK}-part4"
+    "/dev/disk/by-id/${DISK}-part3"
 
   zfs create -o mountpoint=none rpool/root
   zfs create -o mountpoint=/ -o canmount=noauto rpool/root/arch
@@ -89,20 +89,8 @@ create_filesystems() {
   zfs create -o mountpoint=/root rpool/data/home/root
   chmod 700 /mnt/os/root
 
-#   zpool create -f -d \
-#     -o ashift=12 \
-#     -o cachefile= \
-#     -o compatibility=grub2 \
-#     -m none \
-#     -R /mnt/os \
-#     bpool \
-#     "/dev/disk/by-id/${DISK}-part2"
-
-#   zfs create -o canmount=off bpool/boot
-#   zfs create -o mountpoint=/boot bpool/boot/arch
-
-  mkswap -f "/dev/disk/by-id/${DISK}-part3"
-  swapon "/dev/disk/by-id/${DISK}-part3"
+  mkswap -f "/dev/disk/by-id/${DISK}-part2"
+  swapon "/dev/disk/by-id/${DISK}-part2"
 
   zpool status
   zfs list
@@ -187,6 +175,7 @@ do_chroot() {
   systemctl enable zfs-import.target --root=/mnt/os
   systemctl enable wpa_supplicant@wlan0.service --root=/mnt/os
   systemctl enable systemd-networkd.service --root=/mnt/os
+  systemctl disable systemd-networkd-wait-online.service --root=/mnt/os
 }
 
 cleanup_chroot() {
@@ -195,9 +184,9 @@ cleanup_chroot() {
   echo "***"
   cd /
   rm /mnt/os/install-stage0.sh
-  umount /mnt/os/boot/efi
+  umount /mnt/os/boot
   zfs umount -a
-  swapoff /dev/disk/by-id/${DISK}-part3
+  swapoff /dev/disk/by-id/${DISK}-part2
   zpool export -a
   echo "***"
   echo "Finished with the initial setup."
@@ -302,7 +291,7 @@ setup_boot() {
   rm -f /etc/hostid
   zgenhostid $(hostid)
   zpool set cachefile=/etc/zfs/zpool.cache rpool
-  zpool set cachefile=/etc/zfs/zpool.cache bpool
+  # zpool set cachefile=/etc/zfs/zpool.cache bpool
   mkinitcpio -P
   # get uuid of the swap disk
   UUID=$(cat /etc/fstab | grep swap | awk '{print $1}')
@@ -320,20 +309,20 @@ setup_boot() {
 
   # loglevel=3 quiet
   cat <<-EOF > /boot/refind_linux.conf
-  "Boot with standard options"  "zfs=bootfs rw resume=UUID=${UUID} add_efi_memmap "
-  "Boot with standard options"  "zfs=bootfs rw resume=UUID=${UUID} add_efi_memmap single"
-  "Boot with minimal options"   "ro zfs=bootfs"
+  "Boot with standard options"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=initramfs-%v.img"
+  "Boot with fallback initramfs"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=initramfs-%v-fallback.img"
+  "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=initramfs-%v.img systemd.unit=multi-user.target"
 EOF
 
-  cp /boot/efi/EFI/refind/refind.conf refind.conf.orig
-  mkdir -p /boot/efi/EFI/refind/icons/local
-  cp /etc/greetd/wallpaper.png /boot/efi/EFI/refind/icons/local/banner.png
-  cat <<-EOF > /boot/efi/EFI/refind/refind.conf
+  cp /boot/EFI/refind/refind.conf /boo/EFI/refind/refind.conf.orig
+  mkdir -p /boot/EFI/refind/icons/local
+  cp /etc/greetd/wallpaper.jpg /boot/EFI/refind/icons/local/banner.jpg
+  cat <<-EOF > /boot/EFI/refind/refind.conf
   timeout 5
   use_nvram false
-  banner icons/local/banner.png
-  resolution max
-  use_graphics_for linux
+  banner icons/local/banner.jpg
+  #resolution max
+  #use_graphics_for linux
   scan_all_linux_kernels true
   extra_kernel_version_strings linux-hardened,linux-zen,linux-lts,linux
 EOF
