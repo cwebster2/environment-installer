@@ -8,12 +8,12 @@ set -e
 set -u
 set -o pipefail
 
-export TARGET_USER=
+export TARGET_USER
 export INSTALLER=${INSTALLER:-arch}
 export SWAPSIZE=${SWAPSIZE:-32}
-export SSID=""
-export WPA_PASSPHRASE=""
-export HOSTNAME=""
+export SSID
+export WPA_PASSPHRASE
+export HOSTNAME
 
 curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-${INSTALLER}.sh
 
