@@ -37,4 +37,4 @@ echo "Cleaning up"
 
 rm install-stage0.sh install-stage1.sh
 
-echo "Done!, log out and back in for full effect (these dotfiles only setup i3)"
+echo "Done!, log out and back in for full effect"

@@ -2,7 +2,6 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-arch.sh
 
-# TODO wm
 set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
@@ -34,12 +33,12 @@ partition_disk() {
   # $SWAPSIZE GiB swap
   # the rest of the disk ZFS /,/home,etc
   SWAP_OFFSET=$((${SWAPSIZE}*1024 + 1537))
+    # mkpart boot 513 1537 \
   parted -s -a optimal -- "/dev/disk/by-id/${DISK}" \
     unit mib \
     mklabel gpt \
     mkpart esp 1 513 \
-    mkpart boot 513 1537 \
-    mkpart swap 1537 ${SWAP_OFFSET} \
+    mkpart swap 513 ${SWAP_OFFSET} \
     mkpart rootfs ${SWAP_OFFSET} -1 \
     set 1 boot on \
     print \
@@ -90,16 +89,17 @@ create_filesystems() {
   zfs create -o mountpoint=/root rpool/data/home/root
   chmod 700 /mnt/os/root
 
-  zpool create -f -d \
-    -o ashift=12 \
-    -o cachefile= \
-    -m none \
-    -R /mnt/os \
-    bpool \
-    "/dev/disk/by-id/${DISK}-part2"
+#   zpool create -f -d \
+#     -o ashift=12 \
+#     -o cachefile= \
+#     -o compatibility=grub2 \
+#     -m none \
+#     -R /mnt/os \
+#     bpool \
+#     "/dev/disk/by-id/${DISK}-part2"
 
-  zfs create -o canmount=off bpool/boot
-  zfs create -o mountpoint=/boot bpool/boot/arch
+#   zfs create -o canmount=off bpool/boot
+#   zfs create -o mountpoint=/boot bpool/boot/arch
 
   mkswap -f "/dev/disk/by-id/${DISK}-part3"
   swapon "/dev/disk/by-id/${DISK}-part3"
@@ -122,8 +122,8 @@ create_filesystems() {
   zfs load-key rpool
   zfs mount rpool/root/arch
   zfs mount -a
-  zpool import -R /mnt/os bpool
-  zfs mount -a
+  # zpool import -R /mnt/os bpool
+  # zfs mount -a
 
   mount | grep /mnt/os
 
@@ -138,8 +138,8 @@ prepare_chroot() {
   echo "***"
   # prepare for chroot
   cd /mnt/os
-  mkdir boot/efi
-  mount "/dev/disk/by-id/${DISK}-part1" boot/efi
+  mkdir boot
+  mount "/dev/disk/by-id/${DISK}-part1" boot
 
   pacstrap /mnt/os \
     base \
@@ -152,6 +152,7 @@ prepare_chroot() {
     iw \
     wpa_supplicant \
     grub \
+    refind \
     efibootmgr \
     zsh \
     kitty-terminfo \
@@ -305,17 +306,59 @@ setup_boot() {
   mkinitcpio -P
   # get uuid of the swap disk
   UUID=$(cat /etc/fstab | grep swap | awk '{print $1}')
-  echo "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/root/arch resume=${UUID}\"" >> /etc/default/grub
-  sed -i "s/^GRUB_PRELOAD_MODULES=.*$/GRUB_PRELOAD_MODULES=\"part_gpt\"/" /etc/default/grub
-  ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-  ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
-  cat <<-EOF >> /etc/systemd/logind.conf
-HandleLidSwitch=hibernate
-HandleLidSwitchExternalPower=suspend-then-hibernate
-HandleLidSwitchDocked=suspend-then-hibernate
+
+  # setup the bootloader
+  # echo "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/root/arch resume=${UUID}\"" >> /etc/default/grub
+  # sed -i "s/^GRUB_PRELOAD_MODULES=.*$/GRUB_PRELOAD_MODULES=\"part_gpt\"/" /etc/default/grub
+  # ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+  # ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
+  
+  # sbsigntools?
+  refind-insall
+
+  bash
+
+  # loglevel=3 quiet
+  cat <<-EOF > /boot/refind_linux.conf
+  "Boot with standard options"  "zfs=bootfs rw resume=UUID=${UUID} add_efi_memmap "
+  "Boot with standard options"  "zfs=bootfs rw resume=UUID=${UUID} add_efi_memmap single"
+  "Boot with minimal options"   "ro zfs=bootfs"
 EOF
+
+  cp /boot/efi/EFI/refind/refind.conf refind.conf.orig
+  mkdir -p /boot/efi/EFI/refind/icons/local
+  cp /etc/greetd/wallpaper.png /boot/efi/EFI/refind/icons/local/banner.png
+  cat <<-EOF > /boot/efi/EFI/refind/refind.conf
+  timeout 5
+  use_nvram false
+  banner icons/local/banner.png
+  resolution max
+  use_graphics_for linux
+  scan_all_linux_kernels true
+  extra_kernel_version_strings linux-hardened,linux-zen,linux-lts,linux
+EOF
+
+  mkdir -p /etc/pacman.d/hooks/refind.hook
+  cat <<-EOF >> /etc/pacman.d/hooks/refind.hook
+  [Trigger]
+  Operation=Upgrade
+  Type=Package
+  Target=refind
+
+  [Action]
+  Description = Updating rEFInd on ESP
+  When=PostTransaction
+  Exec=/usr/bin/refind-install
+EOF
+
+  cat <<-EOF >> /etc/systemd/logind.conf
+  HandleLidSwitch=hibernate
+  HandleLidSwitchExternalPower=suspend-then-hibernate
+  HandleLidSwitchDocked=suspend-then-hibernate
+EOF
+
   cat <<-EOF >> /etc/systemd/sleep.conf
-HibernateDelaySec=30min
+  HibernateDelaySec=30min
 EOF
 }
 
@@ -372,7 +415,7 @@ install_base() {
 # brlaser \
 # tcptraceroute \
 # docker-credential-helpers \
-  pacman --noconfirm -S \
+  install_from_arch \
     automake \
     bc \
     bluez \
@@ -470,7 +513,7 @@ EOF
 
 install_laptop() {
 
-  pacman --noconfirm -S \
+  install_from_arch \
     thermald \
     acpid \
     ethtool
@@ -496,13 +539,16 @@ install_gui() {
   echo "***"
   case $GRAPHICS in
     "intel")
-      pacman --noconfirm -S vulkan-intel libva-intel-driver xf86-video-intel
+      install_from_arch vulkan-intel libva-intel-driver xf86-video-intel
+      export WM=sway
       ;;
     "geforce")
-      pacman --noconfirm -S nvidia-drivers
+      install_from_arch nvidia-drivers
+      export WM=i3
       ;;
     "optimus")
-      pacman --noconfirm -S nvidia-drivers bbswitch-dkms
+      install_from_arch nvidia-drivers bbswitch-dkms
+      export WM=i3
       ;;
     *)
       echo "You need to specify whether it's intel, geforce or optimus"
@@ -510,13 +556,13 @@ install_gui() {
       ;;
   esac
 
-  pacman --noconfirm -S \
+  install_from_arch \
     alsa-utils \
     discord \
+    easyeffects \
     emacs \
     firefox \
     flameshot \
-    gdm \
     gtk3 \
     gtk4 \
     gucharmap \
@@ -527,32 +573,62 @@ install_gui() {
     materia-gtk-theme \
     neofetch \
     pavucontrol \
-    playerctl \
-    pulseaudio \
-    qt5-wayland \
+    pipewire \
+    pipewire-alsa \
+    pipewire-jack \
+    pipewire-media-session \
+    pipewire-pulse \
     qt5ct \
-    qt6-wayland \
     qutebrowser \
     remmina \
-    sway \
-    swaybg \
-    swayidle \
-    swaylock \
     vlc \
     vscode \
-    xorg-xwayland
+    xdg-desktop-portal
 
   install_from_aur \
     azuredatastudio-bin \
     google-chrome \
-    greetd \
-    greetd-gtkgreet \
+    noise-suppression-for-voice \
     plymouth-theme-dark-arch \
     plymouth-zfs \
     spotify
 
+  case $WM in
+    "i3")
+      install_from_arch \
+        gdm \
+        i3-wm \
+        i3-lock
+
+      install_from_aur \
+        i3lock-fancy
+
+      systemctl enable gdm
+      ;;
+    "sway")
+      install_from_arch \
+        qt5-wayland \
+        qt6-wayland \
+        sway \
+        swaybg \
+        swayidle \
+        xdg-desktop-portal-wlr \
+        xorg-xwayland
+
+      install_from_aur \
+        greetd \
+        greetd-gtkgreet \
+        swaylock-effects-git
+
+      setup_greeter
+      ;;
+    *)
+      echo "You need to specify WM as i3 or sway"
+      exit 1
+      ;;
+  esac
+
   setup_bootlogo
-  setup_greeter
 
   echo "***"
   echo "*** GUI Install Target Finished"
@@ -565,6 +641,7 @@ setup_bootlogo() {
   echo "***"
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   plymouth-set-default-theme -R dark-arch
+  mkinitcpio -P
 }
 
 setup_greeter() {
@@ -650,6 +727,10 @@ EOF
   systemctl enable greetd
 }
 
+install_from_arch() {
+  pacman --noconform -S $*
+}
+
 install_from_aur() {
   # yay doesn't like being root
   su - ${TARGET_USER} -c "yay --noconfirm -S $*"
@@ -670,7 +751,7 @@ install_games() {
   echo "***"
   echo "*** Installing games target"
   echo "***"
-  pacman --noconfirm -S \
+  install_from_arch \
     steam \
     higan
   install_from_aur lutris-git
