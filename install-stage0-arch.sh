@@ -51,7 +51,10 @@ create_filesystems() {
   echo "***"
   mkfs.fat -F32 "/dev/disk/by-id/${DISK}-part1"
 
+  echo "***"
+  echo "Creating the root pool"
   echo "rpool will ask for a passphrase"
+  echo "***"
   zpool create -f \
     -o ashift=12 \
     -o cachefile= \
@@ -69,26 +72,38 @@ create_filesystems() {
     rpool \
     "/dev/disk/by-id/${DISK}-part3"
 
+  echo "***"
+  echo "*** Creating zfs datasets"
+  echo "*** /"
   zfs create -o mountpoint=none rpool/root
   zfs create -o mountpoint=/ -o canmount=noauto rpool/root/arch
   zpool set bootfs=rpool/root/arch rpool
 
-  zfs create -o mountpoint=/var/log        rpool/log
+  echo "*** /var/log"
+  zfs create -o mountpoint=/var/log rpool/log
 
-  zfs create \ 
+  echo "*** /var/lib/docker"
+  zfs create \
     -o mountpoint=/var/lib/docker \
     -o dedup=sha512 \
     -o quota=10G \
     rpool/docker
 
+  echo "*** /usr/local"
   zfs create -o mountpoint=/usr/local rpool/usrlocal
+  echo "*** /opt"
   zfs create rpool/opt
 
   zfs create -o mountpoint=none -o canmount=off rpool/data
+  echo "*** /home"
   zfs create -o mountpoint=/home rpool/data/home
   zfs create -o mountpoint=/root rpool/data/home/root
   chmod 700 /mnt/os/root
+  echo "***"
 
+  echo "***"
+  echo "*** Creating swap"
+  echo "***"
   mkswap -f "/dev/disk/by-id/${DISK}-part2"
   swapon "/dev/disk/by-id/${DISK}-part2"
 
@@ -96,13 +111,13 @@ create_filesystems() {
   zfs list
 
   echo "***"
-  echo "*** Exporting rpool and bpool"
+  echo "*** Exporting rpool"
   echo "***"
 
   zpool export -a
 
   echo "***"
-  echo "*** Reimporting pools to validate them"
+  echo "*** Reimporting pool to validate"
   echo "*** You will be prompted for rpool passphrase"
   echo "***"
 
@@ -110,8 +125,6 @@ create_filesystems() {
   zfs load-key rpool
   zfs mount rpool/root/arch
   zfs mount -a
-  # zpool import -R /mnt/os bpool
-  # zfs mount -a
 
   mount | grep /mnt/os
 
