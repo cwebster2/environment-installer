@@ -11,7 +11,6 @@ export TARGET_USER=$(whoami)
 export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
 export INSTALLER=${INSTALLER:-arch}
 export GRAPHICS=${GRAPHICS:-intel}
-export WM=${WM:-sway}
 
 curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-${INSTALLER}.sh
 curl -o install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
