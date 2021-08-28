@@ -327,7 +327,7 @@ EOF
 
   cp /boot/EFI/refind/refind.conf /boot/EFI/refind/refind.conf.orig
   mkdir -p /boot/EFI/refind/icons/local
-  curl -o /boot/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
+  curl -sLo /boot/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
   cat <<-EOF > /boot/EFI/refind/refind.conf
   timeout 5
   use_nvram false
@@ -388,7 +388,7 @@ get_installer() {
   echo "***"
   echo "*** Getting stage 1 installer for post-reboot"
   echo "***"
-  curl -o "/home/${TARGET_USER}/install.sh" https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh
+  curl -sLo "/home/${TARGET_USER}/install.sh" https://raw.githubusercontent.com/cwebster2/environment-installer/master/install.sh
   chmod 755 "/home/${TARGET_USER}/install.sh"
   chown ${TARGET_USER}:${TARGET_USER} "/home/${TARGET_USER}/install.sh"
 }
@@ -773,8 +773,9 @@ do_cleanup() {
 }
 
 get_dotfiles_installer() {
-  curl -o /home/${TARGET_USER}/install.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
+  curl -sLo /home/${TARGET_USER}/install.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
   chown ${TARGET_USER} /home/${TARGET_USER}/install.sh
+  chmod 755 /home/${TARGET_USER}/install.sh
 }
 
 check_is_sudo() {

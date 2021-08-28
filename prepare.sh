@@ -9,11 +9,14 @@ set -u
 set -o pipefail
 
 export TARGET_USER
-export INSTALLER=${INSTALLER:-arch}
-export SWAPSIZE=${SWAPSIZE:-32}
 export SSID
 export WPA_PASSPHRASE
 export HOSTNAME
+export INSTALLER=${INSTALLER:-arch}
+export SWAPSIZE=${SWAPSIZE:-32}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
+export INSTALLER=${INSTALLER:-arch}
+export GRAPHICS=${GRAPHICS:-intel}
 
 echo "* Validating system was booted in UEFI mode"
 if [ ! -d "/sys/firmware/efi" ]; then
@@ -37,6 +40,9 @@ rm install-stage0.sh
 
 cat <<-EOF > "/home/${TARGET_USER}/.zshrc
 export INSTALLER=${INSTALLER}
+export DOTFILESBRANCH=${DOTFILESBRANCH}
+export INSTALLER=${INSTALLER}
+export GRAPHICS=${GRAPHICS}
 ./install.sh
 EOF
 
