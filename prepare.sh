@@ -38,12 +38,4 @@ echo "* Running stage0 prepare.  You will be prompted for zfs passphrase and use
 echo "* Cleaning up and rebooting the system"
 rm install-stage0.sh
 
-cat <<-EOF > "/home/${TARGET_USER}/.zshrc"
-export INSTALLER=${INSTALLER}
-export DOTFILESBRANCH=${DOTFILESBRANCH}
-export INSTALLER=${INSTALLER}
-export GRAPHICS=${GRAPHICS}
-./install.sh
-EOF
-
 reboot

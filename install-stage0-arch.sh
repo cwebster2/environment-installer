@@ -189,6 +189,17 @@ do_chroot() {
   systemctl enable systemd-networkd.service --root=/mnt/os
   systemctl enable systemd-timesyncd --root=/mnt/os
   systemctl disable systemd-networkd-wait-online.service --root=/mnt/os
+
+  echo "***"
+  echo "*** Setting up next stage to run on user login"
+  echo "***"
+  cat <<-EOF > "/home/${TARGET_USER}/.zshrc"
+export INSTALLER=${INSTALLER}
+export DOTFILESBRANCH=${DOTFILESBRANCH}
+export INSTALLER=${INSTALLER}
+export GRAPHICS=${GRAPHICS}
+./install.sh
+EOF
 }
 
 cleanup_chroot() {
@@ -825,10 +836,10 @@ main() {
     setup_hostname
     setup_network
     setup_user
-    get_installer
     setup_pacman_keys
     add_arch_zfs
     setup_boot
+    get_installer
   elif [[ $cmd == "base" ]]; then
     check_is_sudo
     install_base
