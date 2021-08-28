@@ -727,7 +727,7 @@ EOF
 }
 
 install_from_arch() {
-  pacman --noconform -S $*
+  pacman --noconfirm -S $*
 }
 
 install_from_aur() {
