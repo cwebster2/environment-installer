@@ -427,6 +427,7 @@ install_base() {
   echo "***"
   echo "*** Starting Base Install Target"
   echo "***"
+  pacman-key --populate archlinux
 # brlaser \
 # tcptraceroute \
 # docker-credential-helpers \
