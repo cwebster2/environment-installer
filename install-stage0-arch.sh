@@ -423,6 +423,25 @@ setup_sudo() {
   } > "/etc/sudoers.d/${TARGET_USER}"
 }
 
+enable_autologin() {
+  echo "***"
+  echo "*** Setting up autologin to handle the first reboot"
+  echo "***"
+  mkdir -p /etc/systemd/system/getty@tty1.service.d
+  cat <<-EOF >> /etc/systemd/system/getty@tty1.service.d/override.conf
+  [Service]
+  ExecStart=
+  ExecStart=-/usr/bin/agetty --autologin ${TARGET_USER} --noclear %I \$TERM
+EOF
+}
+
+disable_autologin() {
+  echo "***"
+  echo "*** Setting up autologin to handle the first reboot"
+  echo "***"
+  rm -f /etc/systemd/system/getty@tty1.service.d/override.conf || true
+}
+
 install_base() {
   echo "***"
   echo "*** Starting Base Install Target"
@@ -842,8 +861,10 @@ main() {
     add_arch_zfs
     setup_boot
     get_installer
+    enable_autologin
   elif [[ $cmd == "base" ]]; then
     check_is_sudo
+    disable_autologin
     install_base
     do_cleanup
     echo "***"
