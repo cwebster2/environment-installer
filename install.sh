@@ -19,27 +19,27 @@ curl -sLo install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles
 
 chmod 755 install-stage0.sh install-stage1.sh
 
-echo "Running stage0 requires sudo, you will be prompted for your password"
+echo "* Running stage0 requires sudo, you will be prompted for your password"
 
 sudo ./install-stage0.sh base
 sudo ./install-stage0.sh wm
 sudo ./install-stage0.sh games
 sudo ./install-stage0.sh laptop
 
-echo "Installing dotfiles"
+echo "* Installing dotfiles"
 
 ./install-stage1.sh dotfiles
 
-echo "Initializing user environment"
+echo "* Initializing user environment"
 
 zsh -i -c "./install-stage1.sh tools"
 zsh -i -c "./install-stage1.sh vim"
 zsh -i -c "./install-stage1.sh emacs"
 
-echo "Cleaning up"
+echo "* Cleaning up"
 
 rm install.sh install-stage0.sh install-stage1.sh
 
-echo "Done!, Rebooting"
+echo "* Done!, Rebooting"
 
 sudo reboot
