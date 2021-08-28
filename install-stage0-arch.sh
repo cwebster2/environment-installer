@@ -193,7 +193,7 @@ do_chroot() {
   echo "***"
   echo "*** Setting up next stage to run on user login"
   echo "***"
-  cat <<-EOF > "/home/${TARGET_USER}/.zshrc"
+  cat <<-EOF > "/mnt/os/home/${TARGET_USER}/.zshrc"
 export INSTALLER=${INSTALLER}
 export DOTFILESBRANCH=${DOTFILESBRANCH}
 export INSTALLER=${INSTALLER}
