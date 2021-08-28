@@ -8,12 +8,14 @@ set -e
 set -o pipefail
 
 export TARGET_USER=$(whoami)
-export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export INSTALLER=${INSTALLER:-arch}
 export GRAPHICS=${GRAPHICS:-intel}
 
-curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-${INSTALLER}.sh
-curl -o install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
+
+echo "* Getting installer scripts"
+curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-${INSTALLER}.sh
+curl -sLo install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
 
 chmod 755 install-stage0.sh install-stage1.sh
 
@@ -38,3 +40,5 @@ echo "Cleaning up"
 rm install-stage0.sh install-stage1.sh
 
 echo "Done!, log out and back in for full effect"
+
+sudo reboot

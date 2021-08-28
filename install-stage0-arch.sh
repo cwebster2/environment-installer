@@ -187,6 +187,7 @@ do_chroot() {
   systemctl enable zfs-import.target --root=/mnt/os
   systemctl enable wpa_supplicant@wlan0.service --root=/mnt/os
   systemctl enable systemd-networkd.service --root=/mnt/os
+  systemctl enable systemd-timesyncd --root=/mnt/os
   systemctl disable systemd-networkd-wait-online.service --root=/mnt/os
 }
 
@@ -471,6 +472,7 @@ install_base() {
     traceroute \
     unrar \
     unzip \
+    w3m \
     wget \
     xz \
     zip \
@@ -560,16 +562,19 @@ install_gui() {
     discord \
     easyeffects \
     emacs \
+    ffmpegthumbnailer \
     firefox \
     flameshot \
     gtk3 \
     gtk4 \
     gucharmap \
+    highlight \
     inkscape \
     kdeconnect \
     keybase \
     kitty \
     materia-gtk-theme \
+    mediainfo \
     neofetch \
     pavucontrol \
     pipewire \
@@ -577,11 +582,13 @@ install_gui() {
     pipewire-jack \
     pipewire-media-session \
     pipewire-pulse \
+    poppler \
     qt5ct \
     qutebrowser \
     remmina \
     vlc \
     vscode \
+    wl-clipboard \
     xdg-desktop-portal
 
   install_from_aur \
@@ -620,6 +627,8 @@ install_gui() {
         swaylock-effects-git
 
       setup_greeter
+
+      systemctl enable greetd
       ;;
     *)
       echo "You need to specify WM as i3 or sway"
@@ -719,11 +728,11 @@ EOF
   export _JAVA_AWT_WM_NONREPARENTING=1
   export NO_AT_BRIDGE=1
 EOF
-  chmod 755 /usr/local/bin/wayland-enablement
 
-  curl -o /etc/greetd/wallpaper.jpg https://raw.githubusercontent.com/cwebster2/dotfiles/main/.config/i3/wallpaper.jpg
+  chmod 755 /usr/local/bin/wayland_enablement
+
+  curl -sLo /etc/greetd/wallpaper.jpg https://raw.githubusercontent.com/cwebster2/dotfiles/main/.config/i3/wallpaper.jpg
   chown -R greeter /etc/greetd
-  systemctl enable greetd
 }
 
 install_from_arch() {
@@ -743,7 +752,7 @@ enable_multilib() {
 [multilib]
 Include = /etc/pacman.d/mirrorlist
 EOF
-  pacman -Syyu
+  pacman --noconfirm -Syyu
 }
 
 install_games() {
