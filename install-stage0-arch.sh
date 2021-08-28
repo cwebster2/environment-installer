@@ -277,7 +277,7 @@ setup_pacman_keys() {
   echo "***"
 
   pacman-key --init
-  # pacman-key --refresh-keys
+  pacman-key --refresh-keys
 }
 
 add_arch_zfs() {
