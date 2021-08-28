@@ -277,10 +277,7 @@ setup_pacman_keys() {
   echo "***"
 
   pacman-key --init
-  (
-    set +e
-    pacman-key --refresh-keys
-  )
+  pacman-key --keyserver hkps://keyserver.ubuntu.com --refresh-keys
 }
 
 add_arch_zfs() {
