@@ -290,6 +290,7 @@ setup_pacman_keys() {
   pacman-key --init
   (
     set +e
+    pacman-key --populate archlinux || true
     pacman-key --keyserver hkps://keyserver.ubuntu.com --refresh-keys || true
   )
 }
