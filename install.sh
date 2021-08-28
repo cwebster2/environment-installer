@@ -24,6 +24,7 @@ echo "Running stage0 requires sudo, you will be prompted for your password"
 sudo ./install-stage0.sh base
 sudo ./install-stage0.sh wm
 sudo ./install-stage0.sh games
+sudo ./install-stage0.sh laptop
 
 echo "Installing dotfiles"
 
@@ -37,8 +38,8 @@ zsh -i -c "./install-stage1.sh emacs"
 
 echo "Cleaning up"
 
-rm install-stage0.sh install-stage1.sh
+rm install.sh install-stage0.sh install-stage1.sh
 
-echo "Done!, log out and back in for full effect"
+echo "Done!, Rebooting"
 
 sudo reboot
