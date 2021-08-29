@@ -686,6 +686,7 @@ setup_bootlogo() {
   echo "***"
   echo "*** Setting up plymouth bootlogo"
   echo "***"
+  mount /boot
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   plymouth-set-default-theme -R dark-arch
   mkinitcpio -P
@@ -694,15 +695,16 @@ setup_bootlogo() {
 setup_greeter() {
   echo "***"
   echo "*** Setting up greeter"
-  echo "***"
 
   mkdir -p /etc/greetd
 
+  echo "*** environments"
   cat <<-EOF >/etc/greetd/environments
   sway-run
   bash
 EOF
 
+  echo "*** config.toml"
   cat <<-EOF >/etc/greetd/config.toml
 [terminal]
 vt = 1
@@ -714,6 +716,7 @@ user = "greeter"
 
 EOF
 
+  echo "*** sway-config"
   cat <<-EOF >/etc/greetd/sway-config
 # `-l` activates layer-shell mode. Notice that `swaymsg exit` will run after gtkgreet.
 exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
@@ -727,6 +730,7 @@ bindsym Mod4+shift+q exec swaynag \
 include /etc/sway/config.d/*
 EOF
 
+  echo "*** gtkgreet css"
   cat <<-EOF >/etc/greetd/gtkgreet.css
 window {
    background-image: url("file:///etc/greetd/wallpaper.jpg");
@@ -742,6 +746,7 @@ box#body {
 }
 EOF
 
+  echo "*** sway-run"
   cat <<-EOF >/usr/local/bin/sway-run
   #!/usr/bin/env bash
 
@@ -756,6 +761,7 @@ EOF
 EOF
   chmod 755 /usr/local/bin/sway-run
 
+  echo "*** wayland_enablement"
   cat <<-EOF >/usr/local/bin/wayland_enablement
   #!/usr/bin/env bash
   export MOZ_ENABLE_WAYLAND=1
@@ -770,8 +776,10 @@ EOF
 
   chmod 755 /usr/local/bin/wayland_enablement
 
+  echo "*** wallpaper"
   curl -sLo /etc/greetd/wallpaper.jpg https://raw.githubusercontent.com/cwebster2/dotfiles/main/.config/i3/wallpaper.jpg
   chown -R greeter /etc/greetd
+  echo "***"
 }
 
 install_from_arch() {
