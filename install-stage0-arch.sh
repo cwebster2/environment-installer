@@ -164,7 +164,7 @@ prepare_chroot() {
   cp --dereference /etc/resolv.conf etc/
 
   genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
-  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /etc/fstab
+  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> etc/fstab
 }
 
 do_chroot() {
