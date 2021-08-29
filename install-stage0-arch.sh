@@ -296,7 +296,7 @@ setup_pacman_keys() {
   (
     set +e
     pacman-key --populate archlinux || true
-    pacman-key --keyserver hkps://keyserver.ubuntu.com --refresh-keys || true
+    # pacman-key --keyserver hkps://keyserver.ubuntu.com --refresh-keys || true
   )
 }
 
@@ -450,7 +450,7 @@ install_base() {
   echo "***"
   echo "*** Starting Base Install Target"
   echo "***"
-  pacman-key --populate archlinux
+  # pacman-key --populate archlinux
 # brlaser \
 # tcptraceroute \
 # docker-credential-helpers \
