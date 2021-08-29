@@ -32,9 +32,9 @@ echo "* Installing dotfiles"
 
 echo "* Initializing user environment"
 
-zsh -i -c "./install-stage1.sh tools"
-zsh -i -c "./install-stage1.sh vim"
-zsh -i -c "./install-stage1.sh emacs"
+zsh -c "./install-stage1.sh tools"
+zsh -c "./install-stage1.sh vim"
+zsh -c "./install-stage1.sh emacs"
 
 echo "* Cleaning up"
 

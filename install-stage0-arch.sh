@@ -139,8 +139,11 @@ prepare_chroot() {
   echo "***"
   # prepare for chroot
   cd /mnt/os
+  mkdir efi
   mkdir boot
-  mount "/dev/disk/by-id/${DISK}-part1" boot
+  mount "/dev/disk/by-id/${DISK}-part1" efi
+  mkdir -p efi/EFI/arch
+  mount --bind efi/EFI/arch boot
 
   pacstrap /mnt/os \
     base \
@@ -161,6 +164,7 @@ prepare_chroot() {
   cp --dereference /etc/resolv.conf etc/
 
   genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
+  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /etc/fstab
 }
 
 do_chroot() {
@@ -209,6 +213,7 @@ cleanup_chroot() {
   cd /
   rm /mnt/os/install-stage0.sh
   umount /mnt/os/boot
+  umount /mnt/os/efi
   zfs umount -a
   swapoff /dev/disk/by-id/${DISK}-part2
   zpool export -a
@@ -335,15 +340,14 @@ setup_boot() {
 
   # loglevel=3 quiet
   cat <<-EOF > /boot/refind_linux.conf
-  "Boot with standard options"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=initramfs-%v.img"
-  "Boot with fallback initramfs"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=initramfs-%v-fallback.img"
-  "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=initramfs-%v.img systemd.unit=multi-user.target"
+  "Boot with standard options"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v.img"
+  "Boot with fallback initramfs"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v-fallback.img"
+  "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=EFI\arch\initramfs-%v.img systemd.unit=multi-user.target"
 EOF
 
-  cp /boot/EFI/refind/refind.conf /boot/EFI/refind/refind.conf.orig
-  mkdir -p /boot/EFI/refind/icons/local
-  curl -sLo /boot/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
-  cat <<-EOF > /boot/EFI/refind/refind.conf
+  mkdir -p /efi/EFI/refind/icons/local
+  curl -sLo /efi/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
+  cat <<-EOF > /efi/EFI/refind/refind.conf
   timeout 5
   use_nvram false
   banner icons/local/banner.jpg
