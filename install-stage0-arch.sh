@@ -141,9 +141,9 @@ prepare_chroot() {
   cd /mnt/os
   mkdir efi
   mkdir boot
-  mount "/dev/disk/by-id/${DISK}-part1" efi
-  mkdir -p efi/EFI/arch
-  mount --bind efi/EFI/arch boot
+  mount "/dev/disk/by-id/${DISK}-part1" /mnt/os/efi
+  mkdir -p /mnt/os/efi/EFI/arch
+  mount --bind /mnt/os/efi/EFI/arch /mnt/os/boot
 
   pacstrap /mnt/os \
     base \
@@ -163,8 +163,8 @@ prepare_chroot() {
 
   cp --dereference /etc/resolv.conf etc/
 
-  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > etc/fstab
-  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> etc/fstab
+  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > /mnt/os/etc/fstab
+  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /mnt/os/etc/fstab
 }
 
 do_chroot() {
