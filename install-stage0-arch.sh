@@ -346,16 +346,17 @@ setup_boot() {
   "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=EFI\arch\initramfs-%v.img systemd.unit=multi-user.target"
 EOF
 
-  mkdir -p /efi/EFI/refind/icons/local
-  curl -sLo /efi/EFI/refind/icons/local/banner.jpg https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.jpg
+  mkdir -p /efi/EFI/refind/theme
+  curl -sLo /efi/EFI/refind/theme/banner.png https://raw.githubusercontent.com/cwebster2/environment-installer/master/wallpaper.png
   cat <<-EOF > /efi/EFI/refind/refind.conf
   timeout 5
   use_nvram false
-  banner icons/local/banner.jpg
-  #resolution max
+  banner theme/banner.png
+  resolution 1920 1080
   #use_graphics_for linux
   scan_all_linux_kernels true
   extra_kernel_version_strings linux-hardened,linux-zen,linux-lts,linux
+  showtools shell, bootorder, gdisk, memtest, mok_tool, about, hidden_tags, reboot, exit, firmware, fwupdate
 EOF
 
   mkdir -p /etc/pacman.d/hooks
