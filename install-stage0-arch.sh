@@ -164,7 +164,6 @@ prepare_chroot() {
   cp --dereference /etc/resolv.conf etc/
 
   genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > /mnt/os/etc/fstab
-  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /mnt/os/etc/fstab
 }
 
 do_chroot() {
@@ -212,6 +211,8 @@ cleanup_chroot() {
   echo "***"
   cd /
   rm /mnt/os/install-stage0.sh
+  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /mnt/os/etc/fstab
+  mount | grep "mnt/os"
   umount /mnt/os/boot
   umount /mnt/os/efi
   zfs umount -a
