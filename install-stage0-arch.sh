@@ -451,10 +451,8 @@ install_base() {
   echo "***"
   echo "*** Starting Base Install Target"
   echo "***"
-  # pacman-key --populate archlinux
 # brlaser \
 # tcptraceroute \
-# docker-credential-helpers \
   install_from_arch \
     automake \
     bc \
@@ -488,6 +486,7 @@ install_base() {
     iwd \
     jq \
     less \
+    libfido2 \
     libssh2 \
     lm_sensors \
     lsb-release \
@@ -510,6 +509,7 @@ install_base() {
     tar \
     the_silver_searcher \
     traceroute \
+    ueberzug \
     unrar \
     unzip \
     w3m \
@@ -553,6 +553,9 @@ EOF
 }
 
 install_laptop() {
+  echo "***"
+  echo "*** Installing Laptop mode tools"
+  echo "***"
 
   install_from_arch \
     thermald \
@@ -580,7 +583,7 @@ install_gui() {
   echo "***"
   case $GRAPHICS in
     "intel")
-      install_from_arch vulkan-intel libva-intel-driver xf86-video-intel
+      install_from_arch vulkan-intel intel-media-driver xf86-video-intel
       export WM=sway
       ;;
     "geforce")
@@ -613,9 +616,12 @@ install_gui() {
     kdeconnect \
     keybase \
     kitty \
+    libva-mesa-driver \
     materia-gtk-theme \
     mediainfo \
+    mesa-vdpau \
     neofetch \
+    odt2txt \
     pavucontrol \
     pipewire \
     pipewire-alsa \
@@ -628,8 +634,10 @@ install_gui() {
     remmina \
     vlc \
     vscode \
+    vulkan-mesa-layers \
+    webp-pixbuf-loader \
     wl-clipboard \
-    xdg-desktop-portal
+    xdg-desktop-portal-wlr
 
   install_from_aur \
     azuredatastudio-bin \
@@ -690,7 +698,6 @@ setup_bootlogo() {
   mount /boot
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   plymouth-set-default-theme -R dark-arch
-  mkinitcpio -P
 }
 
 setup_greeter() {
@@ -784,7 +791,7 @@ EOF
 }
 
 install_from_arch() {
-  pacman --noconfirm -S $*
+  pacman --needed --noconfirm -S $*
 }
 
 install_from_aur() {
@@ -807,6 +814,22 @@ install_games() {
   echo "***"
   echo "*** Installing games target"
   echo "***"
+  case $GRAPHICS in
+    "intel")
+      install_from_arch lib32-vulkan-intel
+      ;;
+    "geforce")
+      install_from_arch lib32-nvidia-utils
+      ;;
+    "optimus")
+      install_from_arch lib32-nvidia-utils
+      ;;
+    *)
+      echo "You need to specify whether it's intel, geforce or optimus"
+      exit 1
+      ;;
+  esac
+
   install_from_arch \
     steam \
     higan
