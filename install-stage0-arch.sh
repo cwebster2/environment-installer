@@ -201,7 +201,7 @@ export INSTALLER=${INSTALLER}
 export DOTFILESBRANCH=${DOTFILESBRANCH}
 export INSTALLER=${INSTALLER}
 export GRAPHICS=${GRAPHICS}
-./install.sh
+./install.sh 2>&1 | tee install.log
 EOF
 }
 
