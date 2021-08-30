@@ -33,9 +33,9 @@ echo "* Installing dotfiles"
 echo "* Initializing user environment"
 
 cat <<"EOF" | zsh -i -s
-install-stage1.sh tools
-install-stage1.sh vim
-install-stage1.sh emacs
+./install-stage1.sh tools
+./install-stage1.sh vim
+./install-stage1.sh emacs
 EOF
 
 echo "* Cleaning up"
