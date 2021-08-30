@@ -86,7 +86,7 @@ create_filesystems() {
   zfs create \
     -o mountpoint=/var/lib/docker \
     -o dedup=sha512 \
-    -o quota=10G \
+    -o quota=100G \
     rpool/docker
 
   echo "*** /usr/local"
@@ -381,6 +381,8 @@ EOF
   cat <<-EOF >> /etc/systemd/sleep.conf
   HibernateDelaySec=30min
 EOF
+
+  echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
 }
 
 setup_user() {

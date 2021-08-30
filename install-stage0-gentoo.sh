@@ -4,14 +4,21 @@
 
 set -eo pipefail
 
-export ROOTDATE=$(date +%Y%M%d)
+export ROOTDATE=$(date +%Y.%M.%d)
 export TARGET_USER=${TARGET_USER:-casey}
 export STAGE3=${STAGE3:-20210808T170546Z/stage3-amd64-systemd-20210808T170546Z.tar.xz}
-export DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
+#export HOSTNAME
 #export SSID=set this
 #export WPA_PASSPHRASE=set this
+
+###################################################################################################
+###
+### The next functions are for partitioning, filesystems and then calling this script in chroot
+###
+###################################################################################################
 
 partition_disk() {
   echo "***"
@@ -27,13 +34,12 @@ partition_disk() {
   # 1 GB boot (zfs) /boot
   # 32 GB swap
   # the rest of the disk ZFS /,/home,etc
-  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 1537))
-  parted -s -a optimal -- "/dev/${DISK}" \
+  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 513))
+  parted -s -a optimal -- "/dev/disk/by-id/${DISK}" \
     unit mib \
     mklabel gpt \
     mkpart esp 1 513 \
-    mkpart boot 513 1537 \
-    mkpart swap 1537 ${SWAP_OFFSET} \
+    mkpart swap 513 ${SWAP_OFFSET} \
     mkpart rootfs ${SWAP_OFFSET} -1 \
     set 1 boot on \
     print \
@@ -44,50 +50,92 @@ create_filesystems() {
   echo "***"
   echo "Creating filesystems, swap and zfs pools"
   echo "***"
-  mkfs.fat -F32 /dev/${DISK}1
+  mkfs.fat -F32 "/dev/disk/by-id/${DISK}-part1"
 
+  echo "***"
+  echo "Creating the root pool"
   echo "rpool will ask for a passphrase"
+  echo "***"
   zpool create -f \
     -o ashift=12 \
     -o cachefile= \
     -O compression=lz4 \
     -O acltype=posixacl \
-    -O atime=off \
+    -O relatime=on \
     -O xattr=sa \
-    -O encryption=on \
+    -O normalization=formD \
+    -O encryption=aes-256-gcm \
     -O keyformat=passphrase \
+    -O canmount=off \
+    -O devices=off \
     -m none \
-    -R /mnt/gentoo \
+    -R /mnt/os \
     rpool \
-    "/dev/${DISK}4"
+    "/dev/disk/by-id/${DISK}-part3"
 
-  ROOTDATE=$(date +%Y%M%d)
+  echo "***"
+  echo "*** Creating zfs datasets"
+  echo "*** /"
   zfs create rpool/gentoo
-  zfs create -o mountpoint=/ rpool/gentoo/root-${ROOTDATE}
-  zpool set bootfs=rpool/gentoo/root-${ROOTDATE} rpool
+  zfs create -o mountpoint=/ rpool/root/gentoo-${ROOTDATE}
+  zpool set bootfs=rpool/root/gentoo-${ROOTDATE} rpool
 
+  echo "*** /var/lib/portage/distfiles"
   zfs create rpool/gentoo_data
   zfs create -o mountpoint=/var/lib/portage/distfiles rpool/gentoo_data/distfiles
 
-  zfs create rpool/data
+  echo "*** /var/log"
+  zfs create -o mountpoint=/var/log rpool/log
+
+  echo "*** /var/lib/docker"
+  zfs create \
+    -o mountpoint=/var/lib/docker \
+    -o dedup=sha512 \
+    -o quota=100G \
+    rpool/docker
+
+  echo "*** /usr/local"
+  zfs create -o mountpoint=/usr/local rpool/usrlocal
+  echo "*** /opt"
+  zfs create rpool/opt
+
+  zfs create -o mountpoint=none -o canmount=off rpool/data
+  echo "*** /home"
   zfs create -o mountpoint=/home rpool/data/home
-  zfs create -o mountpoint=/var/lib/docker rpool/data/docker
-  zfs set quota=100G rpool/data/docker
+  zfs create -o mountpoint=/root rpool/data/home/root
+  chmod 700 /mnt/os/root
+  echo "***"
 
-  zpool create -f -d \
-    -o ashift=12 \
-    -o cachefile= \
-    -m /boot \
-    -R /mnt/gentoo \
-    boot \
-    "/dev/${DISK}2"
-
-  mkswap -f "/dev/${DISK}3"
-  swapon "/dev/${DISK}3"
+  echo "***"
+  echo "*** Creating swap"
+  echo "***"
+  mkswap -f "/dev/disk/by-id/${DISK}-part2"
+  swapon "/dev/disk/by-id/${DISK}-part2"
 
   zpool status
-
   zfs list
+
+  echo "***"
+  echo "*** Exporting rpool"
+  echo "***"
+
+  zpool export -a
+
+  echo "***"
+  echo "*** Reimporting pool to validate"
+  echo "*** You will be prompted for rpool passphrase"
+  echo "***"
+
+  zpool import -R /mnt/os rpool
+  zfs load-key rpool
+  zfs mount rpool/gentoo/root-${ROOTDATE}
+  zfs mount -a
+
+  mount | grep /mnt/os
+
+  echo "***"
+  echo "*** ZFS pools imported and datasets mounted"
+  echo "***"
 }
 
 prepare_chroot() {
@@ -95,9 +143,12 @@ prepare_chroot() {
   echo "Preparing for chrooting"
   echo "***"
   # prepare for chroot
-  cd /mnt/gentoo
-  mkdir boot/efi
-  mount "/dev/${DISK}1" boot/efi
+  cd /mnt/os
+  mkdir efi
+  mkdir boot
+  mount "/dev/disk/by-id/${DISK}-part1" /mnt/os/efi
+  mkdir -p /mnt/os/efi/EFI/arch
+  mount --bind /mnt/os/efi/EFI/arch /mnt/os/boot
 
   # get amd64+systemd stage3 archive
   echo ${STAGE3}
@@ -117,9 +168,9 @@ prepare_chroot() {
   mount --make-rslave proc
   mount --make-rslave sys
 
-  cat <<-EOF >>etc/fstab
-/dev/${DISK}1               /boot/efi       vfat            noauto        1 2
-/dev/${DISK}3               none            swap            sw            0 0
+  cat <<-EOF >etc/fstab
+/dev/disk/by-id/${DISK}-part1               /efi       vfat            noauto        1 2
+/dev/disk/by-id/${DISK}-part2               none            swap            sw            0 0
 EOF
 }
 
@@ -130,8 +181,8 @@ do_chroot() {
   cd ~
   SCRIPTNAME=$(basename "$0")
   PATHNAME=$(dirname "$0")
-  cp "${PATHNAME}/${SCRIPTNAME}" /mnt/gentoo/install-stage0.sh
-  cd /mnt/gentoo
+  cp "${PATHNAME}/${SCRIPTNAME}" /mnt/os/install-stage0.sh
+  cd /mnt/os
   env -i HOME=/root \
     TERM=$TERM \
     DISK=$DISK \
@@ -139,7 +190,23 @@ do_chroot() {
     ROOTDATE=$ROOTDATE \
     HOSTNAME=$HOSTNAME \
     chroot . bash -l -c "./install-stage0.sh chrooted"
-  }
+   
+  systemctl enable zfs.target --root=/mnt/os
+  systemctl enable zfs-import-cache --root=/mnt/os
+  systemctl enable zfs-mount --root=/mnt/os
+  systemctl enable zfs-import.target --root=/mnt/os
+
+  echo "***"
+  echo "*** Setting up next stage to run on user login"
+  echo "***"
+  cat <<-EOF > "/mnt/os/home/${TARGET_USER}/.zshrc"
+export INSTALLER=${INSTALLER}
+export DOTFILESBRANCH=${DOTFILESBRANCH}
+export INSTALLER=${INSTALLER}
+export GRAPHICS=${GRAPHICS}
+./install.sh 2>&1 | tee install.log
+EOF
+}
 
 setup_portage() {
   echo "***"
@@ -224,10 +291,6 @@ EOF
   grub-mkconfig -o /boot/grub/grub.cfg
 
   echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
-  systemctl enable zfs.target
-  systemctl enable zfs-import-cache
-  systemctl enable zfs-mount
-  systemctl enable zfs-import.target
 }
 
 setup_user() {
