@@ -547,6 +547,8 @@ EOF
 
   install_from_aur docker-credential-secretservice
 
+  cp /usr/lib/fwupd/efi/fwupdx64.efi /efi/EFI/tools
+
   systemctl enable docker
   systemctl start docker
 
