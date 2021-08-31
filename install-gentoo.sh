@@ -77,8 +77,8 @@ create_filesystems() {
   echo "*** Creating zfs datasets"
   echo "*** /"
   zfs create rpool/gentoo
-  zfs create -o mountpoint=/ rpool/root/gentoo-${ROOTDATE}
-  zpool set bootfs=rpool/root/gentoo-${ROOTDATE} rpool
+  zfs create -o mountpoint=/ rpool/root/gentoo.${ROOTDATE}
+  zpool set bootfs=rpool/root/gentoo.${ROOTDATE} rpool
 
   echo "*** /var/lib/portage/distfiles"
   zfs create rpool/gentoo_data
@@ -128,7 +128,7 @@ create_filesystems() {
 
   zpool import -R /mnt/os rpool
   zfs load-key rpool
-  zfs mount rpool/gentoo/root-${ROOTDATE}
+  zfs mount rpool/gentoo/root.${ROOTDATE}
   zfs mount -a
 
   mount | grep /mnt/os
@@ -287,7 +287,7 @@ GRUB_CMDLINE_LINUX="dozfs root=ZFS"
 EOF
 
   mount -o remount,rw /sys/firmware/efi/efivars/
-  grub-install --efi-directory=/boot/efi
+  grub-install --efi-directory=/efi
   grub-mkconfig -o /boot/grub/grub.cfg
 
   echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
@@ -365,14 +365,15 @@ cleanup_chroot() {
   echo "***"
   echo "Cleaning up"
   echo "***"
-  umount -lR /mnt/gentoo/{dev,proc,sys,boot}
+  umount -lR /mnt/os/{dev,proc,sys,boot}
   cd /
+  echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /mnt/os/etc/fstab
+  mount | grep "mnt/os"
+  umount /mnt/os/boot
+  umount /mnt/os/efi
   zfs umount -a
-  swapoff /dev/${DISK}3
-  # neet do unmount stuff, export and reboot
-  # TODO fix exporting rpool
-  zpool export rpool
-  zpool export boot
+  swapoff /dev/disk/by-id/${DISK}-part2
+  zpool export -a
   echo "***"
   echo "Finished with the initial setup."
   echo "***"

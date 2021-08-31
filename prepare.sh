@@ -28,7 +28,7 @@ echo "* Setting system time"
 systemctl start systemd-timesyncd
 
 echo "* Getting installer scripts"
-curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-${INSTALLER}.sh
+curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-${INSTALLER}.sh
 chmod 755 install-stage0.sh
 
 echo "* Running stage0 prepare.  You will be prompted for zfs passphrase and user password"

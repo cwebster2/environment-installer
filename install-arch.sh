@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-stage0-arch.sh
+# curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-arch.sh
 
 set -eo pipefail
 
@@ -503,6 +503,7 @@ install_base() {
     nftables \
     nftables \
     openssh \
+    pam-u2f \
     pinentry \
     pkgconf \
     prettyping \
@@ -519,6 +520,7 @@ install_base() {
     w3m \
     wget \
     xz \
+    yubico-pam \
     zip \
     zsh
 
@@ -641,9 +643,7 @@ install_gui() {
     vlc \
     vscode \
     vulkan-mesa-layers \
-    webp-pixbuf-loader \
-    wl-clipboard \
-    xdg-desktop-portal-wlr
+    webp-pixbuf-loader
 
   install_from_aur \
     azuredatastudio-bin \
@@ -656,7 +656,7 @@ install_gui() {
   case $WM in
     "i3")
       install_from_arch \
-        gdm \
+        sddm \
         i3-wm \
         i3-lock
 
@@ -672,6 +672,7 @@ install_gui() {
         sway \
         swaybg \
         swayidle \
+        wl-clipboard \
         xdg-desktop-portal-wlr \
         xorg-xwayland
 
