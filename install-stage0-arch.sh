@@ -383,6 +383,7 @@ EOF
 EOF
 
   echo "options zfs zfs_arc_max=4294967296" >> /etc/modprobe.d/zfs.conf
+  echo "options zfs zfs_vdev_trim_max_active=1" >> /etc/modprobe.d/zfs.conf
 }
 
 setup_user() {
