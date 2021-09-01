@@ -501,7 +501,6 @@ install_base() {
     neovim \
     net-tools \
     nftables \
-    nftables \
     openssh \
     pam-u2f \
     pinentry \
@@ -552,8 +551,12 @@ EOF
 
   cp /usr/lib/fwupd/efi/fwupdx64.efi /efi/EFI/tools
 
-  systemctl enable docker
-  systemctl start docker
+  systemctl enable --now docker
+  systenctl enable --now nftables
+
+  cat <<-EOF >/etc/nftables.conf
+  
+EOF
 
   echo "***"
   echo "*** Base install target finiished"
