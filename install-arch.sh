@@ -554,10 +554,6 @@ EOF
   systemctl enable --now docker
   systenctl enable --now nftables
 
-  cat <<-EOF >/etc/nftables.conf
-  
-EOF
-
   echo "***"
   echo "*** Base install target finiished"
   echo "***"
