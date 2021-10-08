@@ -466,6 +466,7 @@ install_base() {
     bridge-utils \
     bzip2 \
     ca-certificates \
+    cmake \
     coreutils \
     ctags \
     curl \
@@ -499,6 +500,7 @@ install_base() {
     make \
     man \
     neovim \
+    ninja \
     net-tools \
     nftables \
     openssh \
@@ -513,6 +515,7 @@ install_base() {
     tar \
     the_silver_searcher \
     traceroute \
+    tree-sitter \
     ueberzug \
     unrar \
     unzip \

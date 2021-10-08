@@ -224,50 +224,61 @@ base() {
   echo "*** Installing base"
   apt-get install -y \
     apparmor \
+    autoconf \
+    automake \
     bluez \
     bolt \
     bridge-utils \
     build-essential \
     cgroupfs-mount \
+    cmake \
     cpufrequtils \
+    curl \
     docker.io \
+    doxygen \
     emacs-gtk \
     exuberant-ctags \
     fwupd \
     fwupdate \
+    g++ \
+    gdm3 \
+    gettext \
+    gh \
     gnupg-agent \
     google-cloud-sdk \
+    htop \
+    iproute2 \
     iwd \
     libimobiledevice6 \
     libpam-systemd \
-    pcscd \
-    pinentry-curses \
-    scdaemon \
-    psmisc \
-    gdm3 \
-    gh \
-    htop \
-    iproute2 \
-    locate \
-    lshw \
     libsecret-1-dev \
     libssl-dev \
+    libtool \
+    libtool-bin \
     lm-sensors \
+    locate \
+    lshw \
     mpd \
     netbase \
     netcat \
     nftables \
+    ninja-build \
+    pcscd \
+    pinentry-curses \
     pkg-config \
-    printer-driver-brlaser \
     prettyping \
+    printer-driver-brlaser \
+    psmisc \
     rsync \
+    scdaemon \
     silversearcher-ag \
-    ssh \
     software-properties-common \
+    ssh \
     tcptraceroute \
     texlive \
     traceroute \
     unrar \
+    unzip \
     zsh \
     --no-install-recommends
 

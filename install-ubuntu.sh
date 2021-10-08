@@ -207,52 +207,63 @@ base() {
 
   apt-get install -y \
     apparmor \
+    autoconf \
+    automake \
+    bat \
     bluez \
     bolt \
     bridge-utils \
     build-essential \
     cgroupfs-mount \
+    cmake \
     cpufrequtils \
+    curl \
+    docker.io \
+    doxygen \
+    exuberant-ctags \
     fwupd \
     fwupdate \
+    fzf \
+    g++ \
+    gdm3 \
+    gettext \
+    gh \
     gnupg-agent \
     google-cloud-sdk \
+    htop \
+    iproute2 \
     iwd \
     lastpass-cli \
     libimobiledevice6 \
     libpam-systemd \
-    pcscd \
-    pinentry-curses \
-    scdaemon \
-    psmisc \
-    systemd \
-    fzf \
-    gdm3 \
-    gh \
-    htop \
-    iproute2 \
+    libsecret-1-dev \
+    libssl-dev \
+    libtool \
+    libtool-bin \
+    lm-sensors \
+    locate \
     lshw \
     mpd \
-    locate \
     netbase \
     netcat \
     nftables \
+    ninja-build \
+    pcscd \
+    pinentry-curses \
     pkg-config \
+    prettyping \
+    printer-driver-brlaser \
+    psmisc \
     rsync \
+    scdaemon \
     software-properties-common \
+    systemd \
+    tcptraceroute \
     texlive \
     traceroute \
     unrar \
-    tcptraceroute \
+    unzip \
     zsh \
-    lm-sensors \
-    exuberant-ctags \
-    docker.io \
-    printer-driver-brlaser \
-    prettyping \
-    bat \
-    libsecret-1-dev \
-    libssl-dev \
     --no-install-recommends
 
   setup_sudo
