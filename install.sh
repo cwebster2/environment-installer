@@ -15,7 +15,7 @@ export GRAPHICS=${GRAPHICS:-intel}
 
 echo "* Getting installer scripts"
 curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-${INSTALLER}.sh
-curl -sLo install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
+curl -sLo install-stage1.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install-env
 
 chmod 755 install-stage0.sh install-stage1.sh
 
