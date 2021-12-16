@@ -2,7 +2,7 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-arch.sh
 
-set -eo pipefail
+# set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
@@ -43,6 +43,8 @@ partition_disk() {
     set 1 boot on \
     print \
     quit
+  sync
+  sleep 10
 }
 
 create_filesystems() {
@@ -154,16 +156,16 @@ prepare_chroot() {
     archlinux-keyring \
     iproute2 \
     iw \
-    wpa_supplicant \
     refind \
     efibootmgr \
+    networkmanager \
     zsh \
     kitty-terminfo \
     sudo
 
   cp --dereference /etc/resolv.conf etc/
 
-  genfstab -U -p /mnt/os | grep -e '/dev/sd' -A 1 | grep -v -e "^--$" > /mnt/os/etc/fstab
+  genfstab -U -p /mnt/os | grep -e '/dev/' -A 1 | grep -v -e "^--$" > /mnt/os/etc/fstab
 }
 
 do_chroot() {
@@ -188,8 +190,6 @@ do_chroot() {
   systemctl enable zfs-import-cache --root=/mnt/os
   systemctl enable zfs-mount --root=/mnt/os
   systemctl enable zfs-import.target --root=/mnt/os
-  systemctl enable wpa_supplicant@wlan0.service --root=/mnt/os
-  systemctl enable systemd-networkd.service --root=/mnt/os
   systemctl enable systemd-timesyncd --root=/mnt/os
   systemctl disable systemd-networkd-wait-online.service --root=/mnt/os
 
@@ -201,6 +201,9 @@ export INSTALLER=${INSTALLER}
 export DOTFILESBRANCH=${DOTFILESBRANCH}
 export INSTALLER=${INSTALLER}
 export GRAPHICS=${GRAPHICS}
+export SSID=${SSID}
+export WPA_PASSPHRASE=${WPA_PASSPHRASE}
+nmcli dev wifi connect ${SSID} password ${WPA_PASSPHRASE}
 ./install.sh 2>&1 | tee install.log
 EOF
 }
@@ -254,38 +257,6 @@ setup_hostname() {
   # cant run this until after first boot
   echo "${HOSTNAME}" > /etc/hostname
   echo "127.0.1.1 ${HOSTNAME}" >> /etc/hosts
-}
-
-setup_network() {
-  echo "***"
-  echo "Setting up dhcp for ethernet interfaces."
-  echo "***"
-
-  cat <<-EOF > /etc/systemd/network/50-dhcp.network
-[Match]
-Name=en*
-
-[Network]
-DHCP=yes
-EOF
-
-  cat <<-EOF > /etc/systemd/network/00-wireless-dhcp.network
-[Match]
-Name=wlan0
-
-[Network]
-DHCP=yes
-EOF
-
-  cat <<-EOF > /etc/wpa_supplicant/wpa_supplicant.conf
-# Allow users in the 'wheel' group to control wpa_supplicant
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
-
-# Make this file writable for wpa_gui / wpa_cli
-update_config=1
-EOF
-
-  wpa_passphrase "${SSID}" "${WPA_PASSPHRASE}" >> /etc/wpa_supplicant/wpa_supplicant.conf
 }
 
 setup_pacman_keys() {
@@ -593,7 +564,7 @@ install_gui() {
   echo "***"
   case $GRAPHICS in
     "intel")
-      install_from_arch vulkan-intel intel-media-driver xf86-video-intel
+      install_from_arch vulkan-intel intel-media-driver
       export WM=sway
       ;;
     "geforce")
@@ -642,6 +613,7 @@ install_gui() {
     qt5ct \
     qutebrowser \
     remmina \
+    rofi \
     vlc \
     vscode \
     vulkan-mesa-layers \
@@ -705,6 +677,7 @@ setup_bootlogo() {
   echo "*** Setting up plymouth bootlogo"
   echo "***"
   mount /boot
+  sed -i 's/^MODULES=.*$/MODULES=(i915)/' /etc/mkinitcpio.conf
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
   plymouth-set-default-theme -R dark-arch
 }
@@ -900,7 +873,6 @@ main() {
     setup_timezone
     setup_locale
     setup_hostname
-    setup_network
     setup_user
     setup_pacman_keys
     add_arch_zfs

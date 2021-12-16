@@ -4,9 +4,9 @@
 # bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/prepare.sh)"
 # This assumes you already have a working OS and user created
 
-set -e
+# set -e
 set -u
-set -o pipefail
+# set -o pipefail
 
 export TARGET_USER
 export SSID
@@ -17,6 +17,7 @@ export SWAPSIZE=${SWAPSIZE:-32}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export INSTALLER=${INSTALLER:-arch}
 export GRAPHICS=${GRAPHICS:-intel}
+export DISK=CHANGE_ME
 
 echo "* Validating system was booted in UEFI mode"
 if [ ! -d "/sys/firmware/efi" ]; then
