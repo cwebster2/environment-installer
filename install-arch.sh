@@ -2,7 +2,7 @@
 
 # curl -o install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-arch.sh
 
-# set -eo pipefail
+set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
@@ -301,20 +301,14 @@ setup_boot() {
   # get uuid of the swap disk
   UUID=$(cat /etc/fstab | grep swap | awk '{print $1}')
 
-  # setup the bootloader
-  # echo "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/root/arch resume=${UUID}\"" >> /etc/default/grub
-  # sed -i "s/^GRUB_PRELOAD_MODULES=.*$/GRUB_PRELOAD_MODULES=\"part_gpt\"/" /etc/default/grub
-  # ZPOOL_VDEV_NAME_PATH=1 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-  # ZPOOL_VDEV_NAME_PATH=1 grub-mkconfig -o /boot/grub/grub.cfg
-
   # sbsigntools?
   refind-install
 
-  # loglevel=3 quiet
   cat <<-EOF > /boot/refind_linux.conf
-  "Boot with standard options"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v.img"
-  "Boot with fallback initramfs"  "zfs=bootfs rw resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v-fallback.img"
-  "Boot to terminal"   "zfs=bootfs rw add_efi-memmap initrd=EFI\arch\initramfs-%v.img systemd.unit=multi-user.target"
+  "Boot with standard options"  "zfs=bootfs rw quiet splash vt.global_cursor_default=0 iomem=relaxed resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v.img"
+  "Boot without plymouth" "zfs=bootfs rw iomem=relaxed resume=${UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v.img"
+  "Boot with fallback initramfs"  "zfs=bootfs rw quiet splash vt.global_cursor_default=0 resume={UUID} add_efi_memmap initrd=EFI\arch\initramfs-%v-fallback.img"
+  "Boot to terminal"   "zfs=bootfs rw add_efi-memmap iomem=relaxed initrd=EFI\arch\initramfs-%v.img systemd.unit=multi-user.target"
 EOF
 
   mkdir -p /efi/EFI/refind/theme
@@ -324,7 +318,7 @@ EOF
   use_nvram false
   banner theme/banner.png
   resolution 1920 1080
-  #use_graphics_for linux
+  use_graphics_for linux
   scan_all_linux_kernels true
   extra_kernel_version_strings linux-hardened,linux-zen,linux-lts,linux
   showtools shell, bootorder, gdisk, memtest, mok_tool, about, hidden_tags, reboot, exit, firmware, fwupdate
