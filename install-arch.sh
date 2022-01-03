@@ -448,7 +448,6 @@ install_base() {
     file \
     findutils \
     fuse \
-    fwupd \
     gcc \
     git \
     github-cli \
@@ -508,6 +507,14 @@ install_base() {
     su - ${TARGET_USER} -c 'cd /usr/src/yay; makepkg --noconfirm -sri'
     popd
   )
+
+  echo "***"
+  echo "*** Installing from AUR"
+  echo "***"
+
+  install_from_aur \
+    flashrom-git \
+    fwupd-git
 
   echo "***"
   echo "*** Setting up ${TARGET_USER} to use docker and enable zfs"
