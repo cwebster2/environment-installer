@@ -398,6 +398,7 @@ install_wmapps() {
     libpulse-dev \
     libxcb-screensaver0-dev \
     libdbus-1-dev \
+    libsensors-dev \
     spotify-client \
     teams \
     code-insiders \
