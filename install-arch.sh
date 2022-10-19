@@ -18,123 +18,6 @@ export SWAPSIZE=${SWAPSIZE:-32}
 ###
 ###################################################################################################
 
-partition_disk() {
-  echo "***"
-  echo "Partitioning disks for efi, boot, swap and rpool"
-  echo "***"
-  # boot from sysrescuecd with zfs 2 baked into it
-  # https://xyinn.org/gentoo/livecd/
-  # get in and then do this stuff
-
-  echo "Preparing to partition ${DISK}"
-  # The plan:
-  # 512 MB system /boot/efi
-  # 1 GB boot (zfs) /boot
-  # $SWAPSIZE GiB swap
-  # the rest of the disk ZFS /,/home,etc
-  SWAP_OFFSET=$((${SWAPSIZE}*1024 + 513))
-    # mkpart boot 513 1537 \
-  parted -s -a optimal -- "/dev/disk/by-id/${DISK}" \
-    unit mib \
-    mklabel gpt \
-    mkpart esp 1 513 \
-    mkpart swap 513 ${SWAP_OFFSET} \
-    mkpart rootfs ${SWAP_OFFSET} -1 \
-    set 1 boot on \
-    print \
-    quit
-  sync
-  sleep 10
-}
-
-create_filesystems() {
-  echo "***"
-  echo "Creating filesystems, swap and zfs pools"
-  echo "***"
-  mkfs.fat -F32 "/dev/disk/by-id/${DISK}-part1"
-
-  echo "***"
-  echo "Creating the root pool"
-  echo "rpool will ask for a passphrase"
-  echo "***"
-  zpool create -f \
-    -o ashift=12 \
-    -o cachefile= \
-    -O compression=lz4 \
-    -O acltype=posixacl \
-    -O relatime=on \
-    -O xattr=sa \
-    -O normalization=formD \
-    -O encryption=aes-256-gcm \
-    -O keyformat=passphrase \
-    -O canmount=off \
-    -O devices=off \
-    -m none \
-    -R /mnt/os \
-    rpool \
-    "/dev/disk/by-id/${DISK}-part3"
-
-  echo "***"
-  echo "*** Creating zfs datasets"
-  echo "*** /"
-  zfs create -o mountpoint=none rpool/root
-  zfs create -o mountpoint=/ -o canmount=noauto rpool/root/arch
-  zpool set bootfs=rpool/root/arch rpool
-
-  echo "*** /var/log"
-  zfs create -o mountpoint=/var/log rpool/log
-
-  echo "*** /var/lib/docker"
-  zfs create \
-    -o mountpoint=/var/lib/docker \
-    -o dedup=sha512 \
-    -o quota=100G \
-    rpool/docker
-
-  echo "*** /usr/local"
-  zfs create -o mountpoint=/usr/local rpool/usrlocal
-  echo "*** /opt"
-  zfs create rpool/opt
-
-  zfs create -o mountpoint=none -o canmount=off rpool/data
-  echo "*** /home"
-  zfs create -o mountpoint=/home rpool/data/home
-  zfs create -o mountpoint=/root rpool/data/home/root
-  chmod 700 /mnt/os/root
-  echo "***"
-
-  echo "***"
-  echo "*** Creating swap"
-  echo "***"
-  mkswap -f "/dev/disk/by-id/${DISK}-part2"
-  swapon "/dev/disk/by-id/${DISK}-part2"
-
-  zpool status
-  zfs list
-
-  echo "***"
-  echo "*** Exporting rpool"
-  echo "***"
-
-  zpool export -a
-
-  echo "***"
-  echo "*** Reimporting pool to validate"
-  echo "*** You will be prompted for rpool passphrase"
-  echo "***"
-
-  zpool import -R /mnt/os rpool
-  zfs load-key rpool
-  zfs mount rpool/root/arch
-  zfs mount -a
-
-  mount | grep /mnt/os
-
-  echo "***"
-  echo "*** ZFS pools imported and datasets mounted"
-  echo "***"
-}
-
 prepare_chroot() {
   echo "***"
   echo "*** Preparing for chrooting"
@@ -177,13 +60,13 @@ do_chroot() {
   PATHNAME=$(dirname "$0")
   cp "${PATHNAME}/${SCRIPTNAME}" /mnt/os/install-stage0.sh
   cd /mnt/os
-  env -i HOME=/root \
-    TERM=$TERM \
-    DISK=$DISK \
-    TARGET_USER=$TARGET_USER \
-    HOSTNAME=$HOSTNAME \
-    SSID=$SSID \
-    WPA_PASSPHRASE=$WPA_PASSPHRASE \
+  env -i HOME="/root" \
+    TERM="$TERM" \
+    DISK="$DISK" \
+    TARGET_USER="$TARGET_USER" \
+    HOSTNAME="$HOSTNAME" \
+    SSID="$SSID" \
+    WPA_PASSPHRASE="$WPA_PASSPHRASE" \
     arch-chroot /mnt/os bash -l -c "./install-stage0.sh chrooted"
 
   systemctl enable zfs.target --root=/mnt/os
@@ -219,7 +102,7 @@ cleanup_chroot() {
   umount /mnt/os/boot
   umount /mnt/os/efi
   zfs umount -a
-  swapoff /dev/disk/by-id/${DISK}-part2
+  swapoff "/dev/disk/by-id/${DISK}-part2"
   zpool export -a
   echo "***"
   echo "Finished with the initial setup."
