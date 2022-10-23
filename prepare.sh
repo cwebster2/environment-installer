@@ -13,10 +13,9 @@ export SSID
 export WPA_PASSPHRASE
 export HOSTNAME
 export INSTALLER=${INSTALLER:-arch}
-export SWAPSIZE=${SWAPSIZE:-32}
+export SWAPSIZE=${SWAPSIZE:-64}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export INSTALLER=${INSTALLER:-arch}
-export GRAPHICS=${GRAPHICS:-intel}
 export DISK=CHANGE_ME
 
 echo "* Validating system was booted in UEFI mode"
@@ -29,14 +28,14 @@ echo "* Setting system time"
 systemctl start systemd-timesyncd
 
 echo "* Getting installer scripts"
-curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/install-${INSTALLER}.sh
+curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/prepare-${INSTALLER}.sh
 chmod 755 install-stage0.sh
 
 echo "* Running stage0 prepare.  You will be prompted for zfs passphrase and user password"
 
 ./install-stage0.sh prepare
 
-echo "* Cleaning up and rebooting the system"
+echo "* Cleaning up the system"
 rm install-stage0.sh
 
-reboot
+echo "* Reboot into the system"
