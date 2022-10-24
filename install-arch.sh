@@ -116,9 +116,12 @@ install_base() {
   echo "*** Installing from AUR"
   echo "***"
 
-  install_from_aur \
-    flashrom-git \
-    fwupd-git
+  (
+    set +e
+    install_from_aur \
+      flashrom-git \
+      fwupd-git
+  )
 
   echo "***"
   echo "*** Setting up ${TARGET_USER} to use docker and enable zfs"
