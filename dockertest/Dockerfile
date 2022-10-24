@@ -8,15 +8,18 @@ ARG DOTFILESBRANCH
 ARG DISTRO=debian
 
 ENV TARGET_USER=${TARGET_USER:-casey} \
-    DOTFILESBRANCH=${DOTFILESBRANCH:-master}
+    DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 
 USER root
 # RUN useradd $TARGET_USER
 WORKDIR /home/$TARGET_USER
-COPY install-${DISTRO}.sh install-stage0.sh
-RUN ./install-stage0.sh prepare
-RUN ./install-stage0.sh setprofile
-RUN ./install-stage0.sh base
+RUN mkdir .environment-installer
+COPY *.sh .environment-installer/
+RUN cd .environment-installer && ./install-$DISTRO.sh base
+RUN cd .environment-installer && ./install-$DISTRO.sh wm
+RUN cd .environment-installer && ./install-$DISTRO.sh laptop
+RUN cd .environment-installer && ./install-$DISTRO.sh games
+RUN cd .environment-installer && ./install-$DISTRO.sh dotfiles
 
 USER $TARGET_USER
 # RUN wget -qO- https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh > /home/$TARGET_USER/install-stage1.sh && \
