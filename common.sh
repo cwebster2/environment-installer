@@ -127,6 +127,7 @@ arch_install() {
 
 aur_install_by_user() {
   TARGET_USER="${1}"
+  shift
   # yay doesn't like being root
   su - "${TARGET_USER}" -c "yay --noconfirm -S $*"
 }
