@@ -7,6 +7,7 @@ set -eo pipefail
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
 export SWAPSIZE=${SWAPSIZE:-32}
+export GRAPHICS=${GRAPHICS:-intel}
 # export HOSTNAME
 # export SSID=set this
 # export WPA_PASSPHRASE=set this
@@ -51,7 +52,8 @@ prepare_chroot() {
     networkmanager \
     zsh \
     kitty-terminfo \
-    sudo
+    sudo \
+    git
 
   cp --dereference /etc/resolv.conf etc/
 
@@ -62,10 +64,8 @@ do_chroot() {
   echo "***"
   echo "Chrooting"
   echo "***"
-  cd ~
-  SCRIPTNAME=$(basename "$0")
-  PATHNAME=$(dirname "$0")
-  cp "${PATHNAME}/${SCRIPTNAME}" /mnt/os/install-stage0.sh
+  mkdir -p /mnt/os/root/environment-installer
+  cp /environment-installer/*.sh /mnt/os/root/environment-installer
   cd /mnt/os
   env -i HOME="/root" \
     TERM="$TERM" \
@@ -74,7 +74,7 @@ do_chroot() {
     HOSTNAME="$HOSTNAME" \
     SSID="$SSID" \
     WPA_PASSPHRASE="$WPA_PASSPHRASE" \
-    arch-chroot /mnt/os bash -l -c "./install-stage0.sh chrooted"
+    arch-chroot /mnt/os bash -l -c "cd /root/environment-installer && ./prepare-arch.sh chrooted"
 
   systemctl enable zfs.target --root=/mnt/os
   systemctl enable zfs-import-cache --root=/mnt/os
@@ -94,7 +94,7 @@ export GRAPHICS=${GRAPHICS}
 export SSID=${SSID}
 export WPA_PASSPHRASE=${WPA_PASSPHRASE}
 nmcli dev wifi connect ${SSID} password ${WPA_PASSPHRASE}
-./install.sh 2>&1 | tee install.log
+echo "run .environment-installer/install-arch.sh base"
 EOF
 }
 
@@ -103,7 +103,7 @@ cleanup_chroot() {
   echo "Cleaning up"
   echo "***"
   cd /
-  rm /mnt/os/install-stage0.sh
+  rm -rf /mnt/os/root/environment-installer
   echo "/efi/EFI/arch /boot none defaults,bind 0 0" >> /mnt/os/etc/fstab
   mount | grep "mnt/os"
   umount /mnt/os/boot
@@ -251,7 +251,7 @@ setup_user() {
 
   # this is so the zsh setup doesn't bother us until dotfiles are installed
   touch "/home/${TARGET_USER}/.zshrc"
-  chown "${TARGET_USER} /home/${TARGET_USER}/.zshrc"
+  chown "${TARGET_USER}" "/home/${TARGET_USER}/.zshrc"
   setup_sudo
 
   # Setup ~/Downloads as a tmpfs
@@ -310,7 +310,7 @@ main() {
     do_chroot
     cleanup_chroot
     echo "***"
-    echo "*** ALERT: reboot and run insall-stage0.sh base"
+    echo "*** ALERT: reboot and run stage 1 insaller"
     echo "***"
   elif [[ $cmd == "chrooted" ]]; then
     setup_timezone
