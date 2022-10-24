@@ -6,7 +6,6 @@ set -eo pipefail
 
 export TARGET_USER=${TARGET_USER:-casey}
 export DOTFILESBRANCH=${DOTFILESBRANCH:-main}
-export GRAPHICS=${GRAPHICS:-intel}
 export SWAPSIZE=${SWAPSIZE:-32}
 # export HOSTNAME
 # export SSID=set this
@@ -14,6 +13,12 @@ export SWAPSIZE=${SWAPSIZE:-32}
 
 source ./common.sh
 
+get_zfs() {
+  echo "***"
+  echo "*** Installing ZFS"
+  echo "***"
+  curl -s https://raw.githubusercontent.com/eoli3n/archiso-zfs/master/init | bash
+}
 ###################################################################################################
 ###
 ### The next functions are for partitioning, filesystems and then calling this script in chroot
@@ -277,7 +282,6 @@ setup_sudo() {
     echo -e "Defaults	secure_path=\"/usr/local/go/bin:/home/${TARGET_USER}/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/bcc/tools:/home/${TARGET_USER}/.cargo/bin\""; \
     echo -e 'Defaults	env_keep += "ftp_proxy http_proxy https_proxy no_proxy GOPATH EDITOR"'; \
     echo -e "${TARGET_USER} ALL=(ALL) NOPASSWD:ALL"; \
-    echo -e "${TARGET_USER} ALL=NOPASSWD: /sbin/ifconfig, /sbin/ifup, /sbin/ifdown, /sbin/ifquery"; \
   } > "/etc/sudoers.d/${TARGET_USER}"
 }
 
@@ -299,6 +303,7 @@ main() {
   fi
 
   if [[ $cmd == "prepare" ]]; then
+    get_zfs
     partition_disk "$DISK" "$SWAPSIZE"
     create_filesystems_zfs "$DISK"
     prepare_chroot

@@ -2,7 +2,6 @@
 
 # Install with the following command
 # bash -c "$(wget -qO- https://raw.githubusercontent.com/cwebster2/environment-installer/master/prepare.sh)"
-# This assumes you already have a working OS and user created
 
 # set -e
 set -u
@@ -27,15 +26,14 @@ fi
 echo "* Setting system time"
 systemctl start systemd-timesyncd
 
-echo "* Getting installer scripts"
-curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/prepare-${INSTALLER}.sh
-chmod 755 install-stage0.sh
+echo "* Checking installer scripts"
+if [ ! -f ./install-stage0.sh ]; then
+  curl -sLo install-stage0.sh https://raw.githubusercontent.com/cwebster2/environment-installer/master/prepare-${INSTALLER}.sh
+  chmod 755 install-stage0.sh
+fi
 
 echo "* Running stage0 prepare.  You will be prompted for zfs passphrase and user password"
 
-./install-stage0.sh prepare
-
-echo "* Cleaning up the system"
-rm install-stage0.sh
+./install-stage0.sh prepare | tee prepare.log
 
 echo "* Reboot into the system"
