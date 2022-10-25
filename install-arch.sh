@@ -15,11 +15,11 @@ export SWAPSIZE=${SWAPSIZE:-32}
 source ./common.sh
 
 install_from_arch() {
-  arch_install "$*"
+  arch_install $*
 }
 
 install_from_aur() {
-  aur_install_by_user "${TARGET_USER}" "$*"
+  aur_install_by_user "${TARGET_USER}" $*
 }
 
 initialize_pacman() {
@@ -52,6 +52,7 @@ install_base() {
     file \
     findutils \
     fuse \
+    fwupd \
     gcc \
     git \
     github-cli \
@@ -116,12 +117,9 @@ install_base() {
   echo "*** Installing from AUR"
   echo "***"
 
-  (
-    set +e
-    install_from_aur \
-      flashrom-git \
-      fwupd-git
-  )
+  # install_from_aur \
+  #   flashrom-git \
+  #   fwupd-git
 
   echo "***"
   echo "*** Setting up ${TARGET_USER} to use docker and enable zfs"
@@ -137,10 +135,14 @@ EOF
 
   install_from_aur docker-credential-secretservice
 
+  mkdir -p /efi/EFI/tools
   cp /usr/lib/fwupd/efi/fwupdx64.efi /efi/EFI/tools
 
-  systemctl enable --now docker
-  systenctl enable --now nftables
+  (
+    set +e
+    systemctl enable docker
+    systemctl enable nftables
+  )
 
   echo "***"
   echo "*** Base install target finiished"
@@ -431,9 +433,10 @@ do_cleanup() {
 }
 
 get_dotfiles_installer() {
-  curl -sLo /home/${TARGET_USER}/install.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
-  chown ${TARGET_USER} /home/${TARGET_USER}/install.sh
-  chmod 755 /home/${TARGET_USER}/install.sh
+  mkdir -p /home/${TARGET_USER}/bin
+  curl -sLo /home/${TARGET_USER}/bin/env-manager https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/env-manager
+  chown ${TARGET_USER} /home/${TARGET_USER}/bin/env-manager
+  chmod 755 /home/${TARGET_USER}/bin/env-manager
 }
 
 check_is_sudo() {
@@ -457,6 +460,10 @@ usage() {
 
 main() {
   local cmd=$1
+
+  trap 'rollback_zfs_snapshot' ERR SIGINT
+  trap 'destroy_zfs_snapshot' EXIT
+  create_zfs_snapshot
 
   set -u
 
@@ -496,6 +503,7 @@ main() {
     echo "*** Done"
     echo "***"
   elif [[ $cmd == "dotfiles" ]]; then
+    set -x
     get_dotfiles_installer
   else
     usage

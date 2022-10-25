@@ -2,7 +2,7 @@ docker build \
   --build-arg DISTRO=arch \
   --build-arg IMAGE=archlinux \
   --build-arg TAG=latest \
-  -t dotfiles:arch-v1 \
+  -t env-install:arch-v1 \
   --network host \
   -f Dockerfile \
   .. | tee build.log
