@@ -435,7 +435,7 @@ do_cleanup() {
 get_dotfiles_installer() {
   mkdir -p /home/${TARGET_USER}/bin
   curl -sLo /home/${TARGET_USER}/bin/env-manager https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/env-manager
-  chown ${TARGET_USER} /home/${TARGET_USER}/bin/env-manager
+  chown -R ${TARGET_USER} /home/${TARGET_USER}
   chmod 755 /home/${TARGET_USER}/bin/env-manager
 }
 
