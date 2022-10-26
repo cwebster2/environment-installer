@@ -317,7 +317,6 @@ EOF
 vt = 1
 
 [default_session]
-# command = "agreety --cmd $SHELL"
 command = "sway --config /etc/greetd/sway-config"
 user = "greeter"
 
@@ -325,8 +324,6 @@ EOF
 
   echo "*** sway-config"
   cat <<-EOF >/etc/greetd/sway-config
-# `-l` activates layer-shell mode. Notice that `swaymsg exit` will run after gtkgreet.
-# exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
 exec "wlgreet --command sway; swaymsg exit"
 
 bindsym Mod4+shift+q exec swaynag \
@@ -365,7 +362,7 @@ EOF
 
   source /usr/local/bin/wayland_enablement
 
-  systemd-cat --identifier=sway sway $@
+  systemd-cat --identifier=sway sway \$@
 EOF
   chmod 755 /usr/local/bin/sway-run
 
