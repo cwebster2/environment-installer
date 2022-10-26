@@ -266,9 +266,10 @@ install_gui() {
         xdg-desktop-portal-wlr \
         xorg-xwayland
 
+        # greetd-gtkgreet \
       install_from_aur \
         greetd \
-        greetd-gtkgreet \
+        greetd-wlgreet \
         swaylock-effects-git
 
       setup_greeter
@@ -325,7 +326,8 @@ EOF
   echo "*** sway-config"
   cat <<-EOF >/etc/greetd/sway-config
 # `-l` activates layer-shell mode. Notice that `swaymsg exit` will run after gtkgreet.
-exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
+# exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
+exec "wlgreet --command sway; swaymsg exit"
 
 bindsym Mod4+shift+q exec swaynag \
 -t warning \
