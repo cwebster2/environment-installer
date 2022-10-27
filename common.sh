@@ -122,7 +122,7 @@ create_filesystems_zfs() {
 }
 
 arch_install() {
-  pacman --needed --noconfirm -S "$*"
+  pacman --needed --noconfirm -S $*
 }
 
 aur_install_by_user() {
@@ -132,6 +132,37 @@ aur_install_by_user() {
   su - "${TARGET_USER}" -c "yay --noconfirm -S $*"
 }
 
+create_zfs_snapshot() {
+  echo
+  echo "Creating ZFS Snapshot"
+  echo
 
+  if [[ -n $(command -v zfs) ]]; then
+    zfs snapshot -r rpool/root/arch@stage0install
+  fi
+  return 0
+}
+
+rollback_zfs_snapshot() {
+  echo
+  echo "An error occured during install, rolling back to filesystem state before this install step"
+  echo
+
+  if [[ -n $(command -v zfs) ]]; then
+    zfs rollback -r rpool/root/arch@stage0install
+  fi
+  return 0
+}
+
+destroy_zfs_snapshot() {
+  echo
+  echo "The install step was successful, removing zfs snapshot"
+  echo
+
+  if [[ -n $(command -v zfs) ]]; then
+    zfs destroy -r rpool/root/arch@stage0install
+  fi
+  return 0
+}
 
 

@@ -15,11 +15,11 @@ export SWAPSIZE=${SWAPSIZE:-32}
 source ./common.sh
 
 install_from_arch() {
-  arch_install "$*"
+  arch_install $*
 }
 
 install_from_aur() {
-  aur_install_by_user "${TARGET_USER}" "$*"
+  aur_install_by_user "${TARGET_USER}" $*
 }
 
 initialize_pacman() {
@@ -52,6 +52,7 @@ install_base() {
     file \
     findutils \
     fuse \
+    fwupd \
     gcc \
     git \
     github-cli \
@@ -116,12 +117,9 @@ install_base() {
   echo "*** Installing from AUR"
   echo "***"
 
-  (
-    set +e
-    install_from_aur \
-      flashrom-git \
-      fwupd-git
-  )
+  # install_from_aur \
+  #   flashrom-git \
+  #   fwupd-git
 
   echo "***"
   echo "*** Setting up ${TARGET_USER} to use docker and enable zfs"
@@ -137,10 +135,14 @@ EOF
 
   install_from_aur docker-credential-secretservice
 
+  mkdir -p /efi/EFI/tools
   cp /usr/lib/fwupd/efi/fwupdx64.efi /efi/EFI/tools
 
-  systemctl enable --now docker
-  systenctl enable --now nftables
+  (
+    set +e
+    systemctl enable docker
+    systemctl enable nftables
+  )
 
   echo "***"
   echo "*** Base install target finiished"
@@ -264,9 +266,10 @@ install_gui() {
         xdg-desktop-portal-wlr \
         xorg-xwayland
 
+        # greetd-gtkgreet \
       install_from_aur \
         greetd \
-        greetd-gtkgreet \
+        greetd-wlgreet \
         swaylock-effects-git
 
       setup_greeter
@@ -314,7 +317,6 @@ EOF
 vt = 1
 
 [default_session]
-# command = "agreety --cmd $SHELL"
 command = "sway --config /etc/greetd/sway-config"
 user = "greeter"
 
@@ -322,8 +324,7 @@ EOF
 
   echo "*** sway-config"
   cat <<-EOF >/etc/greetd/sway-config
-# `-l` activates layer-shell mode. Notice that `swaymsg exit` will run after gtkgreet.
-exec "GTK_THEME=Materia-dark gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
+exec "wlgreet --command sway; swaymsg exit"
 
 bindsym Mod4+shift+q exec swaynag \
 -t warning \
@@ -361,7 +362,7 @@ EOF
 
   source /usr/local/bin/wayland_enablement
 
-  systemd-cat --identifier=sway sway $@
+  systemd-cat --identifier=sway sway \$@
 EOF
   chmod 755 /usr/local/bin/sway-run
 
@@ -432,8 +433,8 @@ do_cleanup() {
 
 get_dotfiles_installer() {
   mkdir -p /home/${TARGET_USER}/bin
-  curl -sLo /home/${TARGET_USER}/bin/env-manager.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/env-manager
-  chown ${TARGET_USER} /home/${TARGET_USER}/bin/env-manager
+  curl -sLo /home/${TARGET_USER}/bin/env-manager https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/env-manager
+  chown -R ${TARGET_USER} /home/${TARGET_USER}
   chmod 755 /home/${TARGET_USER}/bin/env-manager
 }
 
@@ -458,6 +459,10 @@ usage() {
 
 main() {
   local cmd=$1
+
+  trap 'rollback_zfs_snapshot' ERR SIGINT
+  trap 'destroy_zfs_snapshot' EXIT
+  create_zfs_snapshot
 
   set -u
 
@@ -497,6 +502,7 @@ main() {
     echo "*** Done"
     echo "***"
   elif [[ $cmd == "dotfiles" ]]; then
+    set -x
     get_dotfiles_installer
   else
     usage
