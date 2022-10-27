@@ -460,9 +460,9 @@ usage() {
 main() {
   local cmd=$1
 
-  trap 'rollback_zfs_snapshot' ERR SIGINT
-  trap 'destroy_zfs_snapshot' EXIT
-  create_zfs_snapshot
+  # trap 'rollback_zfs_snapshot' ERR SIGINT
+  # trap 'destroy_zfs_snapshot' EXIT
+  # create_zfs_snapshot
 
   set -u
 
