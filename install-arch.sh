@@ -233,11 +233,11 @@ install_gui() {
     vulkan-mesa-layers \
     webp-pixbuf-loader
 
+    # plymouth-theme-dark-arch \
   install_from_aur \
     azuredatastudio-bin \
     google-chrome \
     noise-suppression-for-voice \
-    plymouth-theme-dark-arch \
     plymouth-zfs \
     spotify
 
@@ -293,7 +293,7 @@ setup_bootlogo() {
   mount /boot
   sed -i 's/^MODULES=.*$/MODULES=(i915)/' /etc/mkinitcpio.conf
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
-  plymouth-set-default-theme -R dark-arch
+  # plymouth-set-default-theme -R dark-arch
 }
 
 setup_greeter() {
@@ -431,9 +431,10 @@ do_cleanup() {
 }
 
 get_dotfiles_installer() {
-  curl -sLo /home/${TARGET_USER}/install.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/install.sh
-  chown ${TARGET_USER} /home/${TARGET_USER}/install.sh
-  chmod 755 /home/${TARGET_USER}/install.sh
+  mkdir -p /home/${TARGET_USER}/bin
+  curl -sLo /home/${TARGET_USER}/bin/env-manager.sh https://raw.githubusercontent.com/cwebster2/dotfiles/${DOTFILESBRANCH}/bin/env-manager
+  chown ${TARGET_USER} /home/${TARGET_USER}/bin/env-manager
+  chmod 755 /home/${TARGET_USER}/bin/env-manager
 }
 
 check_is_sudo() {
