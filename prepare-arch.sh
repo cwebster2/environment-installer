@@ -313,13 +313,13 @@ main() {
     echo "*** ALERT: reboot and run stage 1 insaller"
     echo "***"
   elif [[ $cmd == "chrooted" ]]; then
-    setup_timezone
-    setup_locale
+    # setup_timezone
+    # setup_locale
     setup_hostname
     setup_user
-    setup_pacman_keys
-    add_arch_zfs
-    setup_boot
+    # setup_pacman_keys
+    # add_arch_zfs
+    # setup_boot
     get_installer
   else
     usage

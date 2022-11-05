@@ -272,9 +272,9 @@ install_gui() {
         greetd-wlgreet \
         swaylock-effects-git
 
-      setup_greeter
+      # setup_greeter
 
-      systemctl enable greetd
+      # systemctl enable greetd
       ;;
     *)
       echo "You need to specify WM as i3 or sway"
@@ -282,7 +282,7 @@ install_gui() {
       ;;
   esac
 
-  setup_bootlogo
+  # setup_bootlogo
 
   echo "***"
   echo "*** GUI Install Target Finished"
@@ -296,7 +296,7 @@ setup_bootlogo() {
   mount /boot
   sed -i 's/^MODULES=.*$/MODULES=(i915)/' /etc/mkinitcpio.conf
   sed -i 's/^HOOKS=.*$/HOOKS=(base udev plymouth autodetect modconf block keyboard plymouth-zfs filesystems resume)/' /etc/mkinitcpio.conf
-  # plymouth-set-default-theme -R dark-arch
+  plymouth-set-default-theme -R dark-arch
 }
 
 setup_greeter() {
